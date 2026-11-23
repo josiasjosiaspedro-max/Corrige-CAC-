@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101c36"><meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"><meta name="apple-mobile-web-app-title" content="Corrige+ (CAC)">
+  <meta name="description" content="Correção óptica de cartões-resposta, avaliações, turmas e notas, para professores da EREM Cônego Alexandre Cavalcanti.">
+  <link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon-192.png" type="image/png"><link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="styles.css"><title>Corrige+ (CAC) · Professor</title>
+</head>
+<body>
+  <div id="authScreen" class="auth-screen" hidden>
+    <section class="auth-card" aria-labelledby="authTitle">
+      <img class="auth-logo" src="icons/icon-192.png" alt="Ícone do Corrige+ (CAC)">
+      <p class="auth-kicker">EREM CÔNEGO ALEXANDRE CAVALCANTI</p><h1 id="authTitle">Corrige<span>+</span> <small>(CAC)</small></h1>
+      <p class="muted">Acesse sua conta individual para gerenciar avaliações e resultados com segurança.</p>
+      <form id="authForm" class="stack">
+        <label class="field">E-mail institucional ou pessoal<input id="authEmail" type="email" autocomplete="email" required placeholder="professor@exemplo.com"></label>
+        <label class="field">Senha (mínimo 8 caracteres)<input id="authPassword" type="password" minlength="8" autocomplete="current-password" required placeholder="Sua senha"></label>
+        <button id="authSubmit" class="btn btn-primary auth-submit" type="submit">Entrar</button>
+      </form>
+      <div class="auth-actions"><button data-action="toggleSignup" class="text-button" type="button">Criar conta</button><button data-action="forgotPassword" class="text-button" type="button">Esqueci a senha</button></div>
+      <p class="tiny">O cadastro deve ser autorizado pela escola antes de usar com dados reais de alunos. Cada professor acessa apenas seus próprios registros.</p>
+    </section>
+  </div>
+  <div id="appShell" class="shell">
+    <aside class="sidebar">
+      <div class="brand"><img class="brand-logo" src="icons/icon-180.png" alt=""><span>Corrige<span class="brand-plus">+</span><small>(CAC) · PROFESSOR</small></span></div>
+      <div class="menu-label">ESPAÇO DE TRABALHO</div>
+      <nav id="desktopNav" aria-label="Menu principal"></nav>
+      <div class="sidebar-note"><strong id="accountLabel">Modo demonstração</strong><p id="accountDetail">Dados fictícios guardados neste navegador, sem sincronização.</p><button class="btn btn-sm btn-logout" data-action="logout" id="logoutButton" hidden>Sair da conta</button></div>
+    </aside>
+    <div class="content-area">
+      <header class="topbar"><div class="topbar-brand"><img class="mobile-brand" src="icons/icon-180.png" alt="Ícone Corrige+ (CAC)"><div><span class="eyebrow">EREM CÔNEGO · BEZERROS — PE</span><h1 id="pageTitle">Visão geral</h1></div></div><div class="topbar-right"><span class="status-dot"></span><span id="storageStatus">Demonstração local</span></div></header>
+      <main id="view" aria-live="polite"></main>
+    </div>
+  </div>
+  <nav id="bottomNav" class="bottom-nav" aria-label="Menu principal no celular"></nav>
+  <div id="printRoot" aria-hidden="true"></div><div id="toast" class="toast" role="status"></div>
+  <script defer src="config.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.2/dist/umd/supabase.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script defer src="app.js"></script>
+</body></html>
