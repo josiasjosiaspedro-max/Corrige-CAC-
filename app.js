@@ -323,18 +323,18 @@ function capture(){const v=el('camVideo');if(!v?.videoWidth)return toast('Ligue 
 async function fromPhoto(file){if(!file)return;const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{const c=document.createElement('canvas'),factor=Math.min(1,2400/Math.max(img.naturalWidth,img.naturalHeight));c.width=Math.round(img.naturalWidth*factor);c.height=Math.round(img.naturalHeight*factor);c.getContext('2d',{willReadFrequently:true}).drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);stopCamera();handleImage(c);};img.onerror=()=>{URL.revokeObjectURL(url);toast('Não foi possível ler a foto.');};img.src=url;}
 function handleImage(c){scanCanvas=c;manualMode=false;manualCorners=[];proposed=null;el('cameraStage').innerHTML='<div class="capture-preview"><canvas id="snapshotPreview" aria-label="Fotografia do gabarito; toque nos quatro cantos se necessário"></canvas></div>';const preview=el('snapshotPreview');preview.width=c.width;preview.height=c.height;preview.getContext('2d').drawImage(c,0,0);preview.addEventListener('click',onManualPoint);el('manualBox').innerHTML=`<div class="actions">${btn('detect','Tentar leitura automática','btn btn-primary')}${btn('manual','Marcar cantos manualmente','btn btn-ghost')}${btn('rescan','Nova captura','btn')}</div><p id="cornerCount" class="corner-count"></p>`;el('reviewCard').innerHTML='';tryRead();}
 function detectQR(c){if(typeof jsQR!=='function')return null;try{const scale=Math.min(1,1400/Math.max(c.width,c.height)),t=document.createElement('canvas');t.width=Math.floor(c.width*scale);t.height=Math.floor(c.height*scale);const ctx=t.getContext('2d',{willReadFrequently:true});ctx.drawImage(c,0,0,t.width,t.height);const data=ctx.getImageData(0,0,t.width,t.height);return jsQR(data.data,t.width,t.height,{inversionAttempts:'attemptBoth'})?.data||null;}catch{return null;}}
-function tryRead(forceCorners){if(!scanCanvas)return;let e=db.exams.find(x=>x.id===scanExamId),s=null;const code=detectQR(scanCanvas);
+function tryRead(forceCorners){if(!scanCanvas)return;proposed=null;el('reviewCard').innerHTML='';let e=db.exams.find(x=>x.id===scanExamId),s=null;const code=detectQR(scanCanvas);
  if(code?.startsWith('CAC2|')){const parts=code.split('|'),match=db.exams.find(x=>x.id===parts[1]);if(match){e=match;scanExamId=e.id;const selector=el('scanExam');if(selector)selector.value=e.id;s=db.students.find(x=>x.id===parts[2]&&x.classroomId===e.classroomId)||null;}}
  if(!e){el('scanStatus').innerHTML='<div class="notice warn" style="margin-top:16px">Selecione a avaliação ou fotografe um cartão com QR Code legível.</div>';return;}
  const corners=forceCorners||findMarkers(scanCanvas);if(!corners){el('scanStatus').innerHTML='<div class="notice warn" style="margin-top:16px">Não consegui localizar os quatro quadrados. Escolha “Marcar cantos manualmente” e toque nos centros em ordem: superior esquerdo, superior direito, inferior direito, inferior esquerdo.</div>';return;}
- const h=homography(POINTS,corners);if(!h)return toast('Alinhamento incorreto; ajuste os cantos.');const read=readBubbles(scanCanvas,e,h);proposed={exam:e,studentId:s?.id||'',answers:read.answers,confidence:read.confidence,corners};manualMode=false;showCornerPreview(corners);el('scanStatus').innerHTML=`<div class="notice ${read.answers.some(Boolean)?'green':'warn'}" style="margin:16px 0">${read.answers.filter(Boolean).length} de ${e.count} respostas reconhecidas. ${s?'Aluno identificado pelo QR Code. ':''}Confira todas as respostas antes de salvar.</div>`;showReview();}
+ const h=homography(POINTS,corners);if(!h)return toast('Alinhamento incorreto; ajuste os cantos.');const read=readBubbles34(scanCanvas,e,h);proposed={exam:e,studentId:s?.id||'',answers:read.answers,confidence:read.confidence,corners,omr:read};manualMode=false;showCornerPreview(corners);el('scanStatus').innerHTML=`<div class="notice ${read.answers.some(Boolean)?'green':'warn'}" style="margin:16px 0">${read.answers.filter(Boolean).length} de ${e.count} respostas reconhecidas. ${s?'Aluno identificado pelo QR Code. ':''}Confira todas as respostas antes de salvar.</div>`;showReview();}
 function showCornerPreview(corners){const p=el('snapshotPreview');if(!p||!scanCanvas)return;const ctx=p.getContext('2d');ctx.drawImage(scanCanvas,0,0);const r=Math.max(5,p.width/120);ctx.lineWidth=Math.max(2,p.width/550);ctx.strokeStyle='#0eca87';ctx.fillStyle='#0eca87';ctx.beginPath();corners.forEach(([x,y],i)=>{if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});ctx.closePath();ctx.stroke();corners.forEach(([x,y],i)=>{ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.font=`bold ${Math.max(17,p.width/60)}px sans-serif`;ctx.fillText(String(i+1),x+r+4,y-5);});}
 function onManualPoint(event){if(!manualMode)return;const c=event.currentTarget,rect=c.getBoundingClientRect(),x=(event.clientX-rect.left)*c.width/rect.width,y=(event.clientY-rect.top)*c.height/rect.height;manualCorners.push([x,y]);const order=['superior esquerdo','superior direito','inferior direito','inferior esquerdo'];if(manualCorners.length===4){manualMode=false;tryRead([...manualCorners]);el('cornerCount').textContent='Quatro pontos selecionados.';}else{showCornerPreview(manualCorners);el('cornerCount').textContent=`Marcado ${manualCorners.length}/4. Agora toque no quadrado ${order[manualCorners.length]}.`;}}
 function manual(){if(!scanCanvas)return toast('Capture uma imagem primeiro.');manualMode=true;manualCorners=[];el('snapshotPreview').getContext('2d').drawImage(scanCanvas,0,0);el('cornerCount').textContent='1/4 — Toque no quadrado superior esquerdo.';toast('Selecione os quatro quadrados no sentido horário.');}
 function showReview(){if(!proposed)return;const e=proposed.exam,answers=proposed.answers,correct=answers.filter((x,i)=>x===e.key[i]).length,students=db.students.filter(x=>x.classroomId===e.classroomId).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
  const options=students.map(s=>`<option value="${esc(s.id)}" ${s.id===proposed.studentId?'selected':''}>${esc(s.name)}${s.code?' · '+esc(s.code):''}</option>`).join('');
  const rows=answers.map((a,i)=>`<tr><td>${String(i+1).padStart(2,'0')}</td><td><select data-review="${i}" aria-label="Alternativa lida da questão ${i+1}"><option value="">Em branco / dúvida</option>${L.map(l=>`<option value="${l}" ${a===l?'selected':''}>${l}</option>`).join('')}</select></td><td>${e.key[i]}</td><td class="${!a?'ambiguous':a===e.key[i]?'correct':'incorrect'}">${!a?'Verificar':a===e.key[i]?'Correta':'Incorreta'}</td></tr>`).join('');
- el('reviewCard').innerHTML=`<article class="card" style="margin-top:17px"><div class="card-head"><h3>Confira antes de salvar</h3><span class="pill">AV${avOf(e)||'?'} · ${fmt(e.maxScore||10)} pts</span></div><p class="muted">Marcas fracas e questões duplas exigem conferência. Confira também o estudante identificado pelo QR Code.</p><div class="result-summary"><div><strong id="reviewHits">${correct}</strong><span>Acertos</span></div><div><strong id="reviewGrade">${fmt(grade(correct,e.count,e.maxScore))}</strong><span>Nota</span></div><div><strong id="reviewDoubts">${answers.filter(x=>!x).length}</strong><span>Sem leitura</span></div></div><div class="divider"></div><label class="field">Estudante da turma (obrigatório)<select id="resultStudent"><option value="">Selecione / confirme o estudante</option>${options}</select></label><p class="tiny">${proposed.studentId?'Estudante identificado pelo QR Code. Confira o nome acima.':'QR Code não identificado ou sem aluno válido. Selecione manualmente o estudante correto.'}</p><div class="divider"></div><div class="table-scroller"><table class="review-grid"><thead><tr><th>Questão</th><th>Marcada</th><th>Correta</th><th>Situação</th></tr></thead><tbody>${rows}</tbody></table></div><div class="notice warn review-note">Questões em branco contam como não corretas. Se houver erro de leitura, altere a alternativa antes de salvar.</div><div class="actions" style="margin-top:20px">${btn('saveResult',`${icon('check')} Confirmar e salvar na AV${avOf(e)||''}`,'btn btn-primary')}${btn('manual','Ajustar cantos','btn')}</div></article>`;
+ el('reviewCard').innerHTML=`<article class="card" style="margin-top:17px"><div class="card-head"><h3>Confira antes de salvar</h3><span class="pill">AV${avOf(e)||'?'} · ${fmt(e.maxScore||10)} pts</span></div><p class="muted">Marcas fracas e questões duplas exigem conferência. Confira também o estudante selecionado no Diário.</p><div class="result-summary"><div><strong id="reviewHits">${correct}</strong><span>Acertos</span></div><div><strong id="reviewGrade">${fmt(grade(correct,e.count,e.maxScore))}</strong><span>Nota</span></div><div><strong id="reviewDoubts">${answers.filter(x=>!x).length}</strong><span>Sem leitura</span></div></div><div class="divider"></div><label class="field">Estudante da turma (obrigatório)<select id="resultStudent"><option value="">Selecione / confirme o estudante</option>${options}</select></label><p class="tiny">${proposed.studentId?'Estudante selecionado. Confira o nome acima.':'Confira o estudante antes de registrar.'}</p><div class="divider"></div><div class="table-scroller"><table class="review-grid"><thead><tr><th>Questão</th><th>Marcada</th><th>Correta</th><th>Situação</th></tr></thead><tbody>${rows}</tbody></table></div><div class="notice warn review-note">Questões em branco contam como não corretas. Se houver erro de leitura, altere a alternativa antes de salvar.</div><div class="actions" style="margin-top:20px">${btn('saveResult',`${icon('check')} Confirmar e salvar na AV${avOf(e)||''}`,'btn btn-primary')}${btn('manual','Ajustar cantos','btn')}</div></article>`;
 }
 function reviewUpdate(index,value){if(!proposed)return;proposed.answers[index]=value;const e=proposed.exam,hits=proposed.answers.filter((v,i)=>v===e.key[i]).length;el('reviewHits').textContent=hits;el('reviewGrade').textContent=fmt(grade(hits,e.count,e.maxScore));el('reviewDoubts').textContent=proposed.answers.filter(x=>!x).length;const cell=el('reviewCard').querySelectorAll('tbody tr')[index]?.lastElementChild;if(cell){cell.className=!value?'ambiguous':value===e.key[index]?'correct':'incorrect';cell.textContent=!value?'Verificar':value===e.key[index]?'Correta':'Incorreta';}}
 async function saveResult(){if(!proposed)return;
@@ -964,12 +964,13 @@ tryRead=function(corners){
   const box=el('scanStatus');if(box)box.innerHTML='<div class="notice warn">O cartão parece pertencer a outra atividade. Confira o gabarito escolhido antes de continuar.</div>';
   return;
  }
+ proposed=null;
  oldTryRead30(corners);
  if(proposed){
   if(proposed.exam.id!==chosen.id){proposed=null;return toast('Atividade do cartão diferente da atividade selecionada.');}
   proposed.studentId=selectedScanStudentId30;
   showReview();
-  const status=el('scanStatus');if(status)status.innerHTML=`<div class="notice green">Respostas reconhecidas: ${proposed.answers.filter(Boolean).length}/${proposed.exam.count}. <strong>Estudante: ${esc(db.students.find(s=>s.id===selectedScanStudentId30)?.name||'')}</strong>. Confira as alternativas antes de registrar.</div>`;
+  const status=el('scanStatus');if(status)status.innerHTML=`<div class="notice ${proposed.omr?.valid?'green':'warn'}">${proposed.omr?.valid?'Formato: '+esc(proposed.omr.layout)+'. ':'Não foi possível confirmar o formato do cartão. Ajuste os cantos ou tire outra foto. '}Respostas reconhecidas: ${proposed.answers.filter(Boolean).length}/${proposed.exam.count}. <strong>Estudante: ${esc(db.students.find(s=>s.id===selectedScanStudentId30)?.name||'')}</strong>. Confira as alternativas antes de registrar.</div>`;
  }
 };
 const oldSaveResult30=saveResult;
@@ -1177,7 +1178,7 @@ document.addEventListener('click',ev=>{
 
 /* v3.0.2 — exportação integral antes da exclusão de turma. */
 const home32=renderHome;
-renderHome=function(){return home32().replace(/<section class="hero">[\s\S]*?<\/section>/,'').replace('Versão 3.0.1','Versão 3.0.3');};
+renderHome=function(){return home32().replace(/<section class="hero">[\s\S]*?<\/section>/,'').replace('Versão 3.0.1','Versão 3.0.4');};
 const class32=renderClass31;
 renderClass31=function(id){return class32(id).replace('</div>\n <section class="card stack"',`${btn('deleteClass',icon('trash')+' Apagar turma','btn btn-danger',`data-id="${esc(id)}"`)}</div>\n <section class="card stack"`);};
 let deletePending32=false;
@@ -1251,3 +1252,61 @@ function confirmExport33(c){return askDelete33('Arquivo preparado','Salve e conf
 function statusDelete33(message){closeDeleteStatus33();deleteStatus33=deleteDialog33('Excluindo turma',message,[]);deleteStatus33.addEventListener('cancel',e=>e.preventDefault());deleteStatus33.showModal();}
 function closeDeleteStatus33(){if(deleteStatus33){deleteStatus33.close();deleteStatus33.remove();deleteStatus33=null;}}
 function showDeleteError33(e){return askDelete33('Não foi possível excluir a turma',String(e?.message||e)+' — Verifique a conexão e tente novamente.',[{value:'ok',label:'Fechar'}]);}
+
+/* v3.0.4 — leitura de cartões em uma ou duas colunas, com contraste local. */
+function omrLayouts34(n){
+ const layouts=[];
+ const make=(name,rows,x1,x2,dx,y0,dy,r)=>({name,r,centers:Array.from({length:n},(_,q)=>Array.from({length:5},(_,j)=>[(q<rows?x1:x2)+j*dx,y0+(q%rows)*dy]))});
+ layouts.push(make('Original',Math.ceil(n/(n>15?2:1)),175,555,37,118,45,12));
+ if(n===10)layouts.push(make('Duas colunas de cinco',5,158,500,55.3,108,101.5,17));
+ return layouts;
+}
+function readBubbles34(c,e,H){
+ const {data}=c.getContext('2d',{willReadFrequently:true}).getImageData(0,0,c.width,c.height),w=c.width,h=c.height;
+ const gray=(x,y)=>{const p=mapPoint(H,x,y);return grayAt(data,w,h,p[0],p[1]);};
+ const mean=a=>a.reduce((s,v)=>s+v,0)/a.length;
+ const median=a=>{const s=a.slice().sort((x,y)=>x-y);return s[Math.floor(s.length/2)];};
+ const ring=(x,y,r,mult)=>Array.from({length:24},(_,k)=>{const a=k*Math.PI/12;return gray(x+r*mult*Math.cos(a),y+r*mult*Math.sin(a));});
+ const measure=(x,y,r)=>{
+  const bg=median(ring(x,y,r,1.44)),norm=Math.max(85,bg);
+  const outline=mean([.88,1,1.12].map(m=>mean(ring(x,y,r,m))));
+  const inner=[];for(let iy=-4;iy<=4;iy++)for(let ix=-4;ix<=4;ix++)if(ix*ix+iy*iy<=16)inner.push(gray(x+ix*r*.16,y+iy*r*.16));
+  const ink=Math.max(0,(bg-mean(inner))/norm);
+  return {outline:Math.max(0,(bg-outline)/norm),ink,bg};
+ };
+ const candidates=omrLayouts34(Number(e.count)).map(layout=>{
+  let best=null;
+  for(const ox of [-3,0,3])for(const oy of [-3,0,3]){
+   const centers=layout.centers.map(row=>row.map(([x,y])=>[x+ox,y+oy]));
+   const measurements=centers.map(row=>row.map(([x,y])=>measure(x,y,layout.r)));
+   const outlines=measurements.flat().map(v=>v.outline);
+   const score=median(outlines)*.7+mean(outlines)*.3;
+   if(!best||score>best.score)best={...layout,centers,measurements,score};
+  }return best;
+ }).sort((a,b)=>b.score-a.score);
+ const best=candidates[0];
+ const valid=best.score>=.09 && (candidates.length===1||best.score-candidates[1].score>=.035);
+ const confidence=best.measurements.map(row=>row.map(v=>v.ink));
+ const answers=confidence.map(levels=>{
+  if(!valid)return '';
+  const [first,second]=levels.map((v,i)=>({v,i})).sort((a,b)=>b.v-a.v);
+  return first.v>=.22&&first.v-second.v>=.14&&second.v<Math.max(.20,first.v*.54)?L[first.i]:'';
+ });
+ return {answers,confidence,centers:best.centers,r:best.r,layout:best.name,valid,score:best.score,layoutScores:candidates.map(v=>[v.name,v.score])};
+}
+
+// Mostra no cartão a posição de cada marcação reconhecida, sem alterar a fotografia original.
+const previewBefore34=showCornerPreview;
+showCornerPreview=function(corners){
+ previewBefore34(corners);
+ const p=el('snapshotPreview'),read=proposed?.omr;
+ if(!p||!read?.valid)return;
+ const H=homography(POINTS,corners);if(!H)return;
+ const ctx=p.getContext('2d');ctx.save();ctx.lineWidth=Math.max(1.5,p.width/420);
+ read.centers.forEach((row,q)=>{
+  const j=L.indexOf(read.answers[q]);if(j<0)return;
+  const [x,y]=row[j];ctx.strokeStyle='#16d47b';ctx.beginPath();
+  for(let k=0;k<=32;k++){const a=k*Math.PI/16;const pt=mapPoint(H,x+read.r*1.18*Math.cos(a),y+read.r*1.18*Math.sin(a));if(k===0)ctx.moveTo(...pt);else ctx.lineTo(...pt);}
+  ctx.closePath();ctx.stroke();
+ });ctx.restore();
+};
