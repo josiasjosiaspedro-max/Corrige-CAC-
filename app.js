@@ -1,5 +1,5 @@
 'use strict';
-/* Corrige+ (CAC) v2.4 — ata via OCR local, AV1–AV5, correção via QR+OMR, acesso por RLS. */
+/* Corrige+ (CAC) v2.7 — importação apenas dos nomes da ata, QR+OMR, diário por trimestre e disciplina. */
 const STORE_KEY='corrige-cac-demonstracao-v2';
 const L=['A','B','C','D','E'];
 const POINTS=[[30,28],[770,28],[770,805],[30,805]];
@@ -13,6 +13,7 @@ let tab='home', creating=false, draft={name:'',classroomId:'',count:10,key:Array
 let scanExamId='', cameraStream=null, scanCanvas=null,manualCorners=[],proposed=null,manualMode=false;
 let mode='demo', client=null,user=null,authSignup=false,passwordReset=false,selectedClassId='',detailResultId='';
 let stagedNames=[],rosterPhotoUrl='',rosterBusy=false;
+let rosterColumnLeft=30,rosterColumnRight=88; // Fração horizontal escolhida para a coluna Nome; matrícula e assinaturas ficam fora.
 function toast(msg){const t=el('toast');t.textContent=msg;t.classList.add('visible');clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.classList.remove('visible'),4700);}
 function uid(){if(globalThis.crypto?.randomUUID)return crypto.randomUUID();return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&3|8)).toString(16);});}
 const fmt=x=>Number(x||0).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:2});
@@ -138,54 +139,75 @@ function empty(title,desc,action,label){return `<div class="empty"><div class="b
 function className(id){return db.classes.find(x=>x.id===id)?.name||'';}
 function renderClasses(){const active=selectedClassId||db.classes[0]?.id||'';selectedClassId=active;
  const options=db.classes.map(c=>`<option value="${esc(c.id)}" ${active===c.id?'selected':''}>${esc(c.name)}</option>`).join('');
- const photo=rosterPhotoUrl?`<img src="${esc(rosterPhotoUrl)}" alt="Prévia local da ata" class="roster-preview">`:'';
+ const photo=rosterPhotoUrl?`<section class="roster-column-tool"><h4>Selecione somente a coluna Nome</h4><p class="muted-note">Mova os controles até a região transparente conter todos os nomes, sem matrícula nem assinaturas. Deslize a imagem para conferir as linhas inferiores.</p><div class="roster-crop-scroll"><div class="roster-crop-stage"><img id="rosterImage" src="${esc(rosterPhotoUrl)}" alt="Foto da ata para selecionar a coluna de nomes"><div class="roster-mask roster-mask-left" style="width:${rosterColumnLeft}%"></div><div class="roster-mask roster-mask-right" style="width:${100-rosterColumnRight}%"></div><div class="roster-selection" style="left:${rosterColumnLeft}%;right:${100-rosterColumnRight}%"></div></div></div><label class="field">Início da coluna Nome <input id="rosterCropLeft" type="range" min="0" max="80" step="1" value="${rosterColumnLeft}" aria-label="Limite esquerdo da coluna Nome"></label><label class="field">Fim da coluna Nome <input id="rosterCropRight" type="range" min="20" max="100" step="1" value="${rosterColumnRight}" aria-label="Limite direito da coluna Nome"></label><div class="actions">${btn('recognizeRoster',`${icon('scan')} Ler apenas os nomes`,'btn btn-primary',rosterBusy?'disabled':'')}${btn('resetRosterCrop','Ajustar seleção inicial','btn')}</div><p class="muted-note">Apenas a parte transparente será reconhecida. O aplicativo não utiliza os números de matrícula.</p></section>`:'';
  const staged=stagedNames.length?`<section class="ocr-review"><h4>Conferência dos nomes (${stagedNames.length})</h4><p class="muted">Verifique um nome por linha. Corrija ou exclua qualquer linha incorreta antes de salvar. Somente os nomes confirmados são armazenados.</p><textarea id="rosterNames" rows="9" spellcheck="false" aria-label="Nomes extraídos da ata, um por linha">${esc(stagedNames.join('\n'))}</textarea><div class="actions">${btn('confirmRoster',`${icon('check')} Confirmar e gerar tabela`,'btn btn-primary')}${btn('clearRoster','Descartar','btn')}</div></section>`:'';
  return `<div class="toolbar"><p class="muted">Cadastre a turma e use a câmera para reconhecer os nomes da ata.</p></div>
  <div class="roster-grid"><article class="card stack"><h3>Cadastrar turma</h3><form id="classForm" class="stack"><label class="field">Nome da turma<input name="name" required maxlength="60" placeholder="Ex.: 3º Ano A"></label><div class="form-grid"><label class="field">Série<input name="grade" maxlength="40" placeholder="Ex.: 3º EM"></label><label class="field">Turno<select name="shift"><option>Integral</option><option>Manhã</option><option>Tarde</option><option>Noite</option></select></label></div><label class="field">Ano letivo<input name="year" type="number" min="2020" max="2100" value="${new Date().getFullYear()}"></label><button class="btn btn-primary" type="submit">${icon('add')} Salvar turma</button></form><div class="divider"></div><h3>Turmas cadastradas</h3>${db.classes.length?db.classes.map(c=>`<div class="exam-row"><div><strong>${esc(c.name)}</strong><p>${esc(c.grade||'')} · ${c.year||''} · ${db.students.filter(s=>s.classroomId===c.id).length} alunos</p></div><div class="actions">${btn('pickClass','Abrir','btn btn-sm',`data-id="${esc(c.id)}"`)}${btn('deleteClass',icon('trash'),'btn btn-danger btn-sm',`data-id="${esc(c.id)}"`)}</div></div>`).join(''):'<p class="muted">Nenhuma turma cadastrada.</p>'}</article>
- <article class="card stack"><h3>Foto da ata de estudantes</h3>${db.classes.length?`<label class="field">Escolha a turma<select id="rosterClass">${options}</select></label><div class="actions"><label class="btn btn-primary upload-label">${icon('camera')} Tirar foto da ata<input id="rosterPhotoCamera" type="file" accept="image/*" capture="environment" aria-label="Fotografar ata"></label><label class="btn upload-label">Escolher foto<input id="rosterPhotoGallery" type="file" accept="image/*" aria-label="Selecionar foto da galeria"></label></div><p class="muted-note">O reconhecimento de texto acontece no aparelho. A imagem não é enviada nem armazenada no Supabase. É necessária internet na primeira utilização para carregar a ferramenta de OCR.</p>${photo}${rosterBusy?'<div class="notice">Reconhecendo os nomes… não feche esta tela.</div>':''}${staged}<details class="fallback"><summary>Adicionar nome manualmente (alternativa)</summary><form id="studentForm" class="stack" style="margin-top:12px"><label class="field">Nome<input name="name" maxlength="100" required></label><label class="field">Número (opcional)<input name="code" maxlength="50"></label><button class="btn" type="submit">Adicionar estudante</button></form></details><label class="field">Ou importar lista CSV<input id="studentCsv" type="file" accept=".csv,text/csv,text/plain"></label>`:'<p class="muted">Crie uma turma antes de fotografar a ata.</p>'}</article></div>
+ <article class="card stack"><h3>Importar nomes pela foto da ata</h3>${db.classes.length?`<label class="field">Escolha a turma<select id="rosterClass">${options}</select></label><div class="actions"><label class="btn btn-primary upload-label">${icon('camera')} Tirar foto da ata<input id="rosterPhotoCamera" type="file" accept="image/*" capture="environment" aria-label="Fotografar ata"></label><label class="btn upload-label">Escolher foto<input id="rosterPhotoGallery" type="file" accept="image/*" aria-label="Selecionar foto da galeria"></label></div><p class="muted-note">Selecione apenas a coluna dos nomes. Matrículas e assinaturas serão ignoradas. O reconhecimento acontece no aparelho; a imagem não é enviada nem armazenada no Supabase. A primeira leitura exige internet para carregar a ferramenta.</p>${photo}${rosterBusy?'<div class="notice">Reconhecendo os nomes… não feche esta tela.</div>':''}${staged}<details class="fallback"><summary>Adicionar nome manualmente (alternativa)</summary><form id="studentForm" class="stack" style="margin-top:12px"><label class="field">Nome<input name="name" maxlength="100" required></label><label class="field">Número (opcional)<input name="code" maxlength="50"></label><button class="btn" type="submit">Adicionar estudante</button></form></details><label class="field">Ou importar lista CSV<input id="studentCsv" type="file" accept=".csv,text/csv,text/plain"></label>`:'<p class="muted">Crie uma turma antes de fotografar a ata.</p>'}</article></div>
  ${db.classes.length?`<section class="card grade-roster"><div class="card-head"><div><h3>Quadro de notas</h3><p class="muted">A tabela nasce com os nomes da ata e 5 colunas de avaliação.</p></div><span class="pill pill-green">AV1 · AV2 · AV3 · AV4 · AV5</span></div>${gradeTableForClass(active,true)}</section>`:''}`;
 }
 
 function extractRosterLines(text){
- const banned=/\b(ATA|ESCOLA|TURMA|ALUNO\/?A|ESTUDANTES|DISCIPLINA|PROFESSOR|ASSINATURA|DIRETORIA|MATRICULA|REGISTRO|NUMERO|FREQUENCIA|DATA|ANO\s+LETIVO|PAGINA|ENSINO|LISTA|NOME\s+COMPLETO|SÉRIE|SERIE|TURNO)\b/i;
- const names=[],unique=new Set();
- for(const original of String(text||'').split(/\r?\n/)){
-  const chunks=original.normalize('NFKC').trim().split(/\s*\|\s*|\t+|\s{3,}/);
-  const candidates=(chunks.length>1?chunks:[original]).map(raw=>raw
-    .replace(/^\s*(?:\d{1,3}|[Il]{1,3})[.)º°\-:\s]+/,'')
-    .replace(/\s+\d{2,}[\/.,\-\d]*.*$/,'')
-    .replace(/^[^A-Za-zÀ-ÿ]+/,'').replace(/[^A-Za-zÀ-ÿ .'-]+$/,'').replace(/\s+/g,' ').trim());
-  const valid=candidates.filter(line=>{
-    if(line.length<5||line.length>100||banned.test(line)||/\d/.test(line))return false;
-    const parts=line.split(/\s+/).filter(Boolean);
-    return parts.length>=2&&parts.length<=9&&parts.filter(x=>/[A-Za-zÀ-ÿ]{2,}/.test(x)).length>=2;
-  });
-  if(!valid.length)continue;
-  const line=valid.sort((a,b)=>b.length-a.length)[0],key=line.toLocaleLowerCase('pt-BR');
+ // A imagem passa por um recorte da coluna Nome antes do OCR.
+ // Esta segunda filtragem impede números, cabeçalhos e ruído de virarem alunos.
+ const banned=/\b(ATA|ESCOLA|TURMA|ALUNOS?|ESTUDANTES?|DISCIPLINA|PROFESSOR(?:A)?|ASSINATURAS?|DIRETORIA|MATR[IÍ]CULA|REGISTRO|N[ÚU]MERO|FREQU[EÊ]NCIA|DATA|ANO\s+LETIVO|P[ÁA]GINA|ENSINO|LISTA|SIMULADO|CAED|RESPONS[ÁA]VEL|UNIDADE|TOTAL|BEZERROS|RECIFE|NOME|S[ÉE]RIE|TURNO)\b/i;
+ const unique=new Set(),names=[];
+ for(const raw of String(text||'').normalize('NFKC').split(/\r?\n/)){
+  let line=raw.replace(/[|¦©®~_=+*#<>\[\]{}]/g,' ').trim();
+  line=line.replace(/^\s*(?:\d{1,9}\s+|\d{1,3}[.):-]\s*)/,'')
+    .replace(/\s*\d{4,}\s*$/,'')
+    .replace(/[^A-Za-zÀ-ÿ .'-]/g,' ')
+    .replace(/\s+/g,' ').trim().replace(/^[.\- ]+|[.\- ]+$/g,'');
+  if(line.length<7||line.length>100||banned.test(line))continue;
+  const parts=line.split(/\s+/);
+  if(parts.length<2||parts.length>9||parts.filter(p=>/[A-Za-zÀ-ÿ]{2,}/.test(p)).length<2)continue;
+  // Distingue nomes longos de assinaturas isoladas e conteúdo de interface.
+  if(/^(?:COPIAR|BAIXAR|SELECIONAR|EXPORTAR|EDITAR|COMPARTILHAR|ABRIR|ARQUIVO|DOCUMENTO|PREENCHER)\b/i.test(line))continue;
+  const key=line.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleUpperCase('pt-BR');
   if(!unique.has(key)){unique.add(key);names.push(line);}
  }
  return names.slice(0,200);
 }
-function clearRoster(){stagedNames=[];if(rosterPhotoUrl){URL.revokeObjectURL(rosterPhotoUrl);rosterPhotoUrl='';}render();}
+function clearRoster(){stagedNames=[];if(rosterPhotoUrl){URL.revokeObjectURL(rosterPhotoUrl);rosterPhotoUrl='';}rosterColumnLeft=30;rosterColumnRight=88;render();}
+function adjustRosterCrop(){
+ const left=el('rosterCropLeft'),right=el('rosterCropRight');if(!left||!right)return;
+ let l=Number(left.value),r=Number(right.value);
+ if(l>r-12){if(document.activeElement===left)l=r-12;else r=l+12;}
+ rosterColumnLeft=Math.max(0,l);rosterColumnRight=Math.min(100,r);
+ left.value=rosterColumnLeft;right.value=rosterColumnRight;
+ const stage=el('view');const a=stage.querySelector('.roster-mask-left'),b=stage.querySelector('.roster-mask-right'),c=stage.querySelector('.roster-selection');
+ if(a)a.style.width=rosterColumnLeft+'%';if(b)b.style.width=(100-rosterColumnRight)+'%';
+ if(c){c.style.left=rosterColumnLeft+'%';c.style.right=(100-rosterColumnRight)+'%';}
+}
 async function readRosterPhoto(file){
  if(!file||!selectedClassId)return toast('Selecione uma turma antes de fotografar a ata.');
  if(!/^image\//.test(file.type))return toast('Selecione uma fotografia válida.');
  if(file.size>15*1024*1024)return toast('Foto muito grande. Escolha uma imagem com até 15 MB.');
  if(rosterBusy)return;
  if(rosterPhotoUrl)URL.revokeObjectURL(rosterPhotoUrl);
- rosterPhotoUrl=URL.createObjectURL(file);stagedNames=[];rosterBusy=true;render();
+ rosterPhotoUrl=URL.createObjectURL(file);stagedNames=[];rosterColumnLeft=30;rosterColumnRight=88;
+ render();toast('Ajuste a região destacada para conter somente os nomes e toque em “Ler apenas os nomes”.');
+}
+async function recognizeRoster(){
+ if(rosterBusy||!rosterPhotoUrl)return;
+ rosterBusy=true;stagedNames=[];render();let worker;
  try{
   if(!window.Tesseract){await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';script.onload=resolve;script.onerror=()=>reject(Error('Não foi possível carregar o reconhecimento de texto. Confira a internet.'));document.head.appendChild(script);});}
   const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('Foto inválida.'));img.src=rosterPhotoUrl;});
-  const canvas=document.createElement('canvas'),size=Math.min(1,1950/Math.max(img.width,img.height));canvas.width=Math.round(img.width*size);canvas.height=Math.round(img.height*size);canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-  let worker;
-  try{worker=await Tesseract.createWorker('por');const result=await worker.recognize(canvas);stagedNames=extractRosterLines(result.data?.text||'');}
-  finally{if(worker)await worker.terminate();}
-  if(!stagedNames.length)toast('Não identifiquei nomes com segurança. Você pode copiar ou digitar os nomes na área de conferência.');
-  else toast(`${stagedNames.length} possíveis nomes encontrados. Confira antes de salvar.`);
+  const sx=Math.round(img.naturalWidth*rosterColumnLeft/100),sw=Math.round(img.naturalWidth*(rosterColumnRight-rosterColumnLeft)/100);
+  if(sw<=0)throw Error('Ajuste a largura da seleção.');
+  const scale=Math.min(2.5,3400/img.naturalHeight,2400/sw);
+  const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(sw*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.filter='grayscale(1) contrast(1.45)';ctx.drawImage(img,sx,0,sw,img.naturalHeight,0,0,canvas.width,canvas.height);ctx.filter='none';
+  worker=await Tesseract.createWorker('por');
+  await worker.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'1'});
+  const result=await worker.recognize(canvas);
+  stagedNames=extractRosterLines(result.data?.text||'');
+  toast(stagedNames.length?`${stagedNames.length} possíveis nomes identificados. Revise antes de salvar.`:'Nenhum nome identificado. Ajuste a coluna ou digite os nomes na conferência.');
   if(!stagedNames.length)stagedNames=[''];
- }catch(err){stagedNames=[''];toast('OCR não concluído: '+(err.message||'verifique a imagem e a conexão.'));}
- finally{rosterBusy=false;render();}
+ }catch(error){stagedNames=[''];toast('Leitura não concluída: '+(error.message||'confira a imagem e a conexão.'));}
+ finally{if(worker)try{await worker.terminate();}catch{}rosterBusy=false;render();}
 }
 async function confirmRoster(){
  if(!selectedClassId)return toast('Escolha a turma.');
@@ -351,6 +373,8 @@ document.addEventListener('click',async event=>{const node=event.target.closest(
   case 'exportGrades':exportCSV();break;
   case 'gotoClasses':go('classes');break;
   case 'clearRoster':clearRoster();break;
+  case 'recognizeRoster':await recognizeRoster();break;
+  case 'resetRosterCrop':rosterColumnLeft=30;rosterColumnRight=88;render();break;
   case 'confirmRoster':await confirmRoster();break;
   case 'showResult':detailResultId=id;render();break;
   case 'closeResult':detailResultId='';render();break;
@@ -540,5 +564,7 @@ document.addEventListener('change',ev=>{const x=ev.target;
 });
 document.addEventListener('click',async ev=>{const node=ev.target.closest('[data-action]');if(!node)return;const act=node.dataset.action;if(act==='v26Subjects'){go('subjects');return;}if(act==='v26Assign'){await assignSubject26(node.dataset.class,node.dataset.subject);return;}if(act==='v26DeleteSubject'){await deleteSubject26(node.dataset.id);return;}if(act==='pickScan'){const e=db.exams.find(e=>e.id===node.dataset.id);if(e){selectedClassId=e.classroomId;selectedSubjectId=e.subjectId;trimester25Selected=trimester25(e);}}},true);
 document.addEventListener('submit',async ev=>{if(ev.target.id!=='subject26Form')return;ev.preventDefault();await addSubject26(ev.target);});
+
+document.addEventListener('input',event=>{if(event.target?.id==='rosterCropLeft'||event.target?.id==='rosterCropRight')adjustRosterCrop();});
 
 initialize();
