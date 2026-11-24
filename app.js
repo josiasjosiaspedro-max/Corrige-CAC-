@@ -1177,12 +1177,12 @@ document.addEventListener('click',ev=>{
 
 /* v3.0.2 — exportação integral antes da exclusão de turma. */
 const home32=renderHome;
-renderHome=function(){return home32().replace(/<section class="hero">[\s\S]*?<\/section>/,'').replace('Versão 3.0.1','Versão 3.0.2');};
+renderHome=function(){return home32().replace(/<section class="hero">[\s\S]*?<\/section>/,'').replace('Versão 3.0.1','Versão 3.0.3');};
 const class32=renderClass31;
 renderClass31=function(id){return class32(id).replace('</div>\n <section class="card stack"',`${btn('deleteClass',icon('trash')+' Apagar turma','btn btn-danger',`data-id="${esc(id)}"`)}</div>\n <section class="card stack"`);};
 let deletePending32=false;
 function chooseDelete32(c){return new Promise(resolve=>{
- const d=document.createElement('dialog');d.setAttribute('aria-label','Apagar turma');d.style.cssText='width:min(92vw,450px);max-height:90vh;border:1px solid #dce2e9;border-radius:20px;padding:22px;color:#17233c;background:#fff;box-shadow:0 20px 80px #0005';
+ const d=document.createElement('dialog');d.setAttribute('aria-label','Apagar turma');d.style.cssText='width:min(92vw,450px);max-height:85dvh;overflow:auto;border:1px solid #dce2e9;border-radius:20px;padding:22px;color:#17233c;background:#fff;box-shadow:0 20px 80px #0005';
  d.innerHTML=`<div class="stack"><h2 style="margin:0">Apagar turma?</h2><p><strong>${esc(c.name)}</strong></p><p>Todos os estudantes, atividades, notas e correções desta turma serão excluídos definitivamente. As outras turmas e o cadastro geral de disciplinas serão mantidos.</p><h3>Deseja exportar os dados antes?</h3><button type="button" class="btn btn-primary" data-choice="pdf">${icon('download')} Sim — exportar PDF</button><button type="button" class="btn btn-primary" data-choice="xlsx">${icon('download')} Sim — exportar Excel (.xlsx)</button><button type="button" class="btn btn-danger" data-choice="none">Não — apagar sem exportar</button><button type="button" class="btn" data-choice="cancel">Cancelar</button></div>`;
  const style=document.createElement('style');style.textContent='dialog::backdrop{background:rgba(13,25,44,.55)}';d.append(style);document.body.append(d);
  let done=false;const finish=v=>{if(done)return;done=true;d.close();d.remove();resolve(v);};d.addEventListener('click',e=>{const v=e.target.closest('[data-choice]')?.dataset.choice;if(v)finish(v);});d.addEventListener('cancel',e=>{e.preventDefault();finish('cancel');});d.showModal();
@@ -1228,12 +1228,26 @@ function purgeLocal32(id){const s=classSnapshot32(id),eids=new Set(s.exams.map(e
 deleteClass=async function(id){
  if(deletePending32)return;const c=db.classes.find(x=>x.id===id);if(!c)return;if(rosterBusy)return toast('Aguarde a importação dos estudantes.');deletePending32=true;
  try{const choice=await chooseDelete32(c);if(choice==='cancel')return;
-  if(choice!=='none'){const s=mode==='cloud'?await cloudSnapshot32(id):classSnapshot32(id),tables=backupTables32(s),blob=choice==='pdf'?await pdf32(tables,s.c):xlsx32(tables);const filename='CorrigeCAC_Turma_'+String(c.name).replace(/[^\p{L}\p{N}_-]+/gu,'_')+'_'+(c.year||'')+'.'+choice;download32(blob,filename);if(!confirm('O arquivo foi enviado para download. Confirme somente depois de salvar e conferir o arquivo. Apagar definitivamente a turma '+c.name+'?'))return;}
-  else if(!confirm('Apagar definitivamente a turma '+c.name+' e todos os registros, SEM exportar?'))return;
+  if(choice!=='none'){const s=mode==='cloud'?await cloudSnapshot32(id):classSnapshot32(id),tables=backupTables32(s),blob=choice==='pdf'?await pdf32(tables,s.c):xlsx32(tables);const filename='CorrigeCAC_Turma_'+String(c.name).replace(/[^\p{L}\p{N}_-]+/gu,'_')+'_'+(c.year||'')+'.'+choice;download32(blob,filename);if(!await confirmExport33(c))return;}
+  // A escolha explícita 'apagar sem exportar' já confirma a exclusão.
+  statusDelete33('Excluindo a turma e seus registros…');
   if(mode==='cloud'){
    // Exclusão transacional, com RLS e validação do professor autenticado.
    const {data,error}=await client.rpc('cac_delete_classroom_complete',{p_classroom_id:id});if(error)throw Error(error.message);if(data!==true)throw Error('Exclusão não confirmada pelo servidor.');
   }
-  purgeLocal32(id);if(openedClass31===id)openedClass31='';if(selectedClassId===id){selectedClassId=db.classes[0]?.id||'';stagedNames=[];rosterPhotoUrl='';rosterProgress='';}if(!db.exams.some(e=>e.id===scanExamId))scanExamId='';selectedScanStudentId30='';selectedExamDiary30='';grade25Editing=null;detailResultId='';ensureSubject26(selectedClassId);persistDemo();render();toast('Turma e registros vinculados excluídos.');
- }catch(e){toast('Não foi possível concluir: '+(e.message||e));}finally{deletePending32=false;}
+  closeDeleteStatus33();purgeLocal32(id);if(openedClass31===id)openedClass31='';if(selectedClassId===id){selectedClassId=db.classes[0]?.id||'';stagedNames=[];rosterPhotoUrl='';rosterProgress='';}if(!db.exams.some(e=>e.id===scanExamId))scanExamId='';selectedScanStudentId30='';selectedExamDiary30='';grade25Editing=null;detailResultId='';ensureSubject26(selectedClassId);persistDemo();render();toast('Turma e registros vinculados excluídos.');
+ }catch(e){closeDeleteStatus33();await showDeleteError33(e);}finally{closeDeleteStatus33();deletePending32=false;}
 };
+
+/* v3.0.3 — confirmações internas, sem dependência de window.confirm no Safari. */
+let deleteStatus33=null;
+function deleteDialog33(title,message,buttons){
+ const d=document.createElement('dialog');d.setAttribute('aria-label',title);d.style.cssText='width:min(88vw,420px);max-height:85dvh;overflow:auto;border:1px solid #dce2e9;border-radius:18px;padding:22px;color:#17233c;background:#fff;box-shadow:0 20px 80px #0005';
+ d.innerHTML=`<style>dialog::backdrop{background:rgba(13,25,44,.55)}</style><div style="display:grid;gap:14px"><h2 style="margin:0">${esc(title)}</h2><p style="margin:0;overflow-wrap:anywhere">${esc(message)}</p>${buttons.map(b=>`<button type="button" class="btn ${b.danger?'btn-danger':''}" data-answer="${esc(b.value)}">${esc(b.label)}</button>`).join('')}</div>`;
+ document.body.append(d);return d;
+}
+function askDelete33(title,message,buttons){return new Promise(resolve=>{const d=deleteDialog33(title,message,buttons);let done=false;const finish=v=>{if(done)return;done=true;d.close();d.remove();resolve(v);};d.addEventListener('click',e=>{const b=e.target.closest('[data-answer]');if(b)finish(b.dataset.answer);});d.addEventListener('cancel',e=>{e.preventDefault();finish('cancel');});d.showModal();});}
+function confirmExport33(c){return askDelete33('Arquivo preparado','Salve e confira o arquivo antes de excluir definitivamente a turma '+c.name+'.',[{value:'delete',label:'Arquivo salvo — apagar turma',danger:true},{value:'cancel',label:'Cancelar e manter turma'}]).then(v=>v==='delete');}
+function statusDelete33(message){closeDeleteStatus33();deleteStatus33=deleteDialog33('Excluindo turma',message,[]);deleteStatus33.addEventListener('cancel',e=>e.preventDefault());deleteStatus33.showModal();}
+function closeDeleteStatus33(){if(deleteStatus33){deleteStatus33.close();deleteStatus33.remove();deleteStatus33=null;}}
+function showDeleteError33(e){return askDelete33('Não foi possível excluir a turma',String(e?.message||e)+' — Verifique a conexão e tente novamente.',[{value:'ok',label:'Fechar'}]);}
