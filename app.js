@@ -1,5 +1,5 @@
 'use strict';
-/* Corrige+ (CAC) v2.8 — leitura da ata em faixas com recuperação de nomes parciais; demais recursos preservados. */
+/* Corrige+ (CAC) v2.9 — leitura por linhas da tabela + importação PDF original. */
 const STORE_KEY='corrige-cac-demonstracao-v2';
 const L=['A','B','C','D','E'];
 const POINTS=[[30,28],[770,28],[770,805],[30,805]];
@@ -613,3 +613,231 @@ document.addEventListener('submit',async ev=>{if(ev.target.id!=='subject26Form')
 document.addEventListener('input',event=>{if(event.target?.id==='rosterCropLeft'||event.target?.id==='rosterCropRight')adjustRosterCrop();else if(event.target?.id==='rosterNames')rosterDraftNames();});
 
 initialize();
+
+
+/* Corrige+ (CAC) v2.9 — complemento para atas longas com linhas impressas.
+ * Processamento local: fotos/PDF não são transmitidos ao Supabase.
+ * Em PDF com camada de texto, extrai diretamente os nomes, sem OCR.
+ * Em fotos ou PDF digitalizado, detecta linhas horizontais e lê em grupos.
+ */
+const oldRenderClasses29=renderClasses;
+renderClasses=function(){
+ let h=oldRenderClasses29();
+ h=h.replace('Ler lista completa (em partes)','Ler os nomes por linhas');
+ h=h.replace('<label class="field">Ou importar lista CSV',
+  '<label class="field">Importar PDF original da ata (recomendado)'+
+  '<input id="rosterPdf29" type="file" accept=".pdf,application/pdf" aria-label="Selecionar arquivo PDF da ata">'+
+  '</label><p class="muted-note">O PDF com texto selecionável permite copiar somente os nomes sem fotografar a tela. Para PDF digitalizado, o aplicativo prepara uma imagem de maior resolução para o leitor. Confira os nomes antes de salvar.</p><label class="field">Ou importar lista CSV');
+ h=h.replace('Se a foto for comprida, a leitura será dividida em trechos.',
+  'O leitor tenta identificar cada linha da tabela; se não conseguir, continua dividindo a foto em trechos.');
+ return h;
+};
+
+async function loadPdf29(){
+ if(window.pdfjsLib)return window.pdfjsLib;
+ await new Promise((resolve,reject)=>{
+  const existing=document.querySelector('script[data-pdf29]');
+  if(existing){if(existing.dataset.ready==='1')resolve();else{existing.addEventListener('load',resolve,{once:true});existing.addEventListener('error',()=>reject(Error('Falha ao carregar leitor de PDF.')),{once:true});}return;}
+  const script=document.createElement('script');
+  script.setAttribute('data-pdf29','1');
+  script.src='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js';
+  script.onload=()=>{script.dataset.ready='1';resolve();};
+  script.onerror=()=>reject(Error('Não foi possível carregar o leitor de PDF. Confira a conexão.'));
+  document.head.appendChild(script);
+ });
+ if(!window.pdfjsLib)throw Error('O leitor de PDF não está disponível.');
+ window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+ return window.pdfjsLib;
+}
+function pdfPageNames29(items,pageWidth){
+ // Agrupa itens da camada de texto pelas coordenadas da linha impressa.
+ // A coluna Nome costuma ocupar o meio da página, entre matrícula e assinatura.
+ const texts=(items||[]).filter(x=>String(x.str||'').trim()).map(x=>({str:String(x.str).trim(),x:Number(x.transform?.[4]||0),y:Number(x.transform?.[5]||0)}));
+ const groups=[];
+ for(const word of texts.sort((a,b)=>b.y-a.y||a.x-b.x)){
+  let g=groups.find(g=>Math.abs(g.y-word.y)<4);
+  if(!g){g={y:word.y,words:[]};groups.push(g);}
+  g.words.push(word);
+ }
+ const result=[];
+ for(const g of groups){
+  const items=g.words.sort((a,b)=>a.x-b.x);
+  // Descartar a coluna de matrículas (esquerda) e a de assinaturas (direita).
+  const core=items.filter(w=>w.x>=pageWidth*.12&&w.x<pageWidth*.92);
+  const candidates=[];
+  for(const i of core)candidates.push(i.str);
+  candidates.push(core.map(i=>i.str).join(' '));
+  // Preferir o nome completo, se estiver fragmentado em vários itens.
+  const parsed=[...new Set(candidates.flatMap(c=>extractRosterLines(c)))];
+  if(parsed.length){parsed.sort((a,b)=>b.length-a.length);result.push(parsed[0]);}
+ }
+ return rosterDedup([],result);
+}
+async function importRosterPdf29(file){
+ if(!file)return;
+ if(!selectedClassId){toast('Selecione a turma primeiro.');return;}
+ if(file.size>20*1024*1024){toast('Escolha um PDF com até 20 MB.');return;}
+ if(rosterBusy)return;
+ rosterDraftNames();
+ rosterBusy=true;rosterUpdateProgress('Abrindo o PDF original…');render();
+ let doc;
+ try{
+  const lib=await loadPdf29();
+  doc=await lib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+  if(doc.numPages>10)throw Error('O PDF tem mais de 10 páginas. Envie um PDF menor, contendo apenas a ata.');
+  const found=[];let firstScanned=null;
+  for(let i=1;i<=doc.numPages;i++){
+   rosterUpdateProgress(`Lendo nomes no PDF: página ${i} de ${doc.numPages}…`);
+   const page=await doc.getPage(i);const tx=await page.getTextContent();
+   const width=page.getViewport({scale:1}).width;
+   const pageNames=pdfPageNames29(tx.items,width);
+   found.push(...pageNames);
+   if(pageNames.length<3&&!firstScanned)firstScanned=page;
+  }
+  if(found.length>=5){
+   const before=stagedNames.length;
+   stagedNames=rosterDedup(stagedNames,found);
+   rosterUpdateProgress(`${stagedNames.length} nomes na conferência: ${stagedNames.length-before} importados do texto do PDF. Revise a lista antes de confirmar.`);
+   toast(`${stagedNames.length-before} novos nomes extraídos do PDF. Confira antes de salvar.`);
+   render();return;
+  }
+  // PDF digitalizado: renderizar em alta resolução, sem perder nitidez em captura de tela.
+  const page=firstScanned||await doc.getPage(1);
+  const natural=page.getViewport({scale:1});
+  const scale=Math.min(3.5,2400/natural.width,3000/natural.height);
+  const viewport=page.getViewport({scale});
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+  await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+  if(!blob)throw Error('Não consegui preparar a imagem do PDF.');
+  rosterBusy=false;
+  await readRosterPhoto(new File([blob],'ata-pdf-pagina.png',{type:'image/png'}));
+  rosterUpdateProgress('PDF digitalizado: página preparada em resolução maior. Ajuste a coluna Nome e toque em “Ler os nomes por linhas”.');
+  toast('O PDF não contém texto selecionável. Preparei a página como imagem para leitura.');
+ }catch(error){rosterUpdateProgress('Não foi possível importar o PDF.');toast('PDF: '+(error.message||'tente outra fonte.'));}
+ finally{rosterBusy=false;try{await doc?.destroy();}catch{}render();}
+}
+
+function detectTableRows29(image,sx,sw,begin,end){
+ const rawTop=Math.max(0,Math.floor(begin*image.naturalHeight));
+ const rawBottom=Math.min(image.naturalHeight,Math.ceil(end*image.naturalHeight));
+ const width=Math.min(720,Math.max(1,Math.round(sw)));
+ const height=Math.max(1,Math.round((rawBottom-rawTop)*width/sw));
+ if(height>8000)return [];
+ const c=document.createElement('canvas');c.width=width;c.height=height;
+ const ctx=c.getContext('2d',{willReadFrequently:true});
+ ctx.drawImage(image,sx,rawTop,sw,rawBottom-rawTop,0,0,width,height);
+ const pix=ctx.getImageData(0,0,width,height).data;
+ const ys=[];const step=3;
+ const start=Math.round(width*.06),stop=Math.round(width*.94);
+ for(let y=2;y<height-2;y++){
+  let dark=0,seen=0;
+  for(let x=start;x<stop;x+=step){
+   const k=(y*width+x)*4;
+   const a=pix[k],b=pix[k+1],d=pix[k+2];
+   if((a+b+d)<630)dark++;
+   seen++;
+  }
+  if(dark/Math.max(1,seen)>.50)ys.push(y);
+ }
+ c.width=1;c.height=1;
+ if(ys.length<8)return [];
+ const centers=[];let group=[ys[0]];
+ for(let i=1;i<ys.length;i++){
+  if(ys[i]-ys[i-1]<=3)group.push(ys[i]);
+  else{centers.push(group.reduce((a,b)=>a+b,0)/group.length);group=[ys[i]];}
+ }
+ centers.push(group.reduce((a,b)=>a+b,0)/group.length);
+ const rows=[];
+ for(let i=0;i<centers.length-1;i++){
+  const y0=centers[i],y1=centers[i+1];
+  const h=y1-y0;
+  // Ignora linhas demasiado próximas ou distantes; evita segmentar por texto.
+  if(h<Math.max(10,width*.014)||h>Math.max(150,width*.28))continue;
+  const from=rawTop+y0*(rawBottom-rawTop)/height;
+  const to=rawTop+y1*(rawBottom-rawTop)/height;
+  rows.push({from,to});
+ }
+ return rows.length>=8&&rows.length<=160?rows:[];
+}
+function drawRosterBatch29(img,sx,sw,rows){
+ const scale=Math.max(1.6,Math.min(3.2,1750/Math.max(1,sw)));
+ const w=Math.round(sw*scale)+32;
+ const widths=rows.map(r=>Math.max(6,Math.round((r.to-r.from-4)*scale)+24));
+ const total=widths.reduce((a,b)=>a+b,0);
+ const can=document.createElement('canvas');can.width=w;can.height=total;
+ const ctx=can.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,w,total);
+ let y=0;
+ for(let i=0;i<rows.length;i++){
+  const row=rows[i],top=Math.round(row.from+2),height=Math.max(4,Math.round(row.to-row.from-4));
+  ctx.filter='grayscale(1) contrast(1.7)';
+  ctx.drawImage(img,sx,top,sw,height,16,y+12,Math.round(sw*scale),Math.round(height*scale));
+  ctx.filter='none';y+=widths[i];
+ }
+ return can;
+}
+const oldRecognizeRoster29=recognizeRoster;
+recognizeRoster=async function(part='all'){
+ if(rosterBusy||!rosterPhotoUrl)return;
+ const ranges={all:[0,1],top:[0,.43],middle:[.29,.73],bottom:[.61,1]};
+ const [start,end]=ranges[part]||ranges.all;
+ const img=new Image();
+ try{await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('Imagem inválida.'));img.src=rosterPhotoUrl;});}
+ catch{return await oldRecognizeRoster29(part);}
+ const sx=Math.round(img.naturalWidth*rosterColumnLeft/100);
+ const sw=Math.round(img.naturalWidth*(rosterColumnRight-rosterColumnLeft)/100);
+ const rows=detectTableRows29(img,sx,sw,start,end);
+ if(!rows.length){return await oldRecognizeRoster29(part);}
+ rosterDraftNames();
+ rosterBusy=true;rosterUpdateProgress(`${rows.length} linhas da tabela detectadas. Lendo nomes…`);
+ render();let worker;
+ try{
+  if(!window.Tesseract){await new Promise((resolve,reject)=>{
+   const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+   script.onload=resolve;script.onerror=()=>reject(Error('Reconhecimento indisponível. Verifique a internet.'));
+   document.head.appendChild(script);
+  });}
+  worker=await Tesseract.createWorker('por');
+  const collected=[];const before=stagedNames.length;
+  const chunkSize=6;
+  for(let i=0;i<rows.length;i+=chunkSize){
+   const partRows=rows.slice(i,i+chunkSize);
+   rosterUpdateProgress(`Lendo linhas ${i+1}–${Math.min(i+chunkSize,rows.length)} de ${rows.length}…`);
+   await worker.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'0'});
+   const batch=drawRosterBatch29(img,sx,sw,partRows);
+   let found=[];
+   try{const output=await worker.recognize(batch);found=extractRosterLines(output.data?.text||'');}
+   catch(e){console.warn('OCR da tabela:',e);}
+   batch.width=1;batch.height=1;
+   // Se o OCR agrupado ignorou linhas, reforçar lendo cada célula isoladamente.
+   if(found.length<Math.ceil(partRows.length*.85)){
+    await worker.setParameters({tessedit_pageseg_mode:'7'});
+    for(const row of partRows){
+     const single=drawRosterBatch29(img,sx,sw,[row]);
+     try{const output=await worker.recognize(single);found.push(...extractRosterLines(output.data?.text||''));}
+     catch(e){console.warn('OCR linha:',e);}
+     single.width=1;single.height=1;
+    }
+   }
+   collected.push(...found);
+  }
+  stagedNames=rosterDedup(stagedNames,collected);
+  const added=stagedNames.length-before;
+  rosterUpdateProgress(`Foram detectadas ${rows.length} linhas da tabela e ${stagedNames.length} nomes estão na conferência. ${added} novos nomes nesta leitura. Confirme manualmente os nomes faltantes.`);
+  toast(added?`${added} nomes adicionados. Confira a lista com a ata.`:'Nenhum nome novo. Use o PDF original ou outra foto.');
+  if(!stagedNames.length)stagedNames=[''];
+ }catch(error){
+  rosterUpdateProgress('Leitura por linhas não concluída. Tente PDF, foto mais nítida ou CSV.');
+  toast('Falha na leitura por linhas: '+(error.message||'tente outra imagem.'));
+ }finally{
+  if(worker)try{await worker.terminate();}catch{}
+  rosterBusy=false;render();
+ }
+};
+
+document.addEventListener('change',async function(e){
+ if(e.target?.id==='rosterPdf29')await importRosterPdf29(e.target.files?.[0]);
+});
+
+const oldRenderHome29=renderHome;renderHome=function(){return oldRenderHome29().replace('Versão 2.6','Versão 2.9');};
