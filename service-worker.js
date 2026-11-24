@@ -1,4 +1,4 @@
-const CACHE='corrige-cac-static-3.2.3';
+const CACHE='corrige-cac-static-3.2.4';
 const APP=new URL('./',self.registration.scope).href;
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(c=>c.add(APP)).then(()=>self.skipWaiting()));});
 self.addEventListener('activate',event=>{event.waitUntil(self.clients.claim());});
