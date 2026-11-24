@@ -91,3 +91,54 @@
 .roster-progress{min-height:30px;padding:8px 10px;border-radius:10px;background:#e9f6f0;color:#164d39;font-size:13px;font-weight:600;line-height:1.4;margin-bottom:8px;}
 .roster-progress:empty{display:none;}
 .ocr-review textarea{min-height:220px;white-space:pre-wrap;font-variant-numeric:tabular-nums;}
+
+/* Corrige+ (CAC) v3.0 — Cadastros separados, diário e cartões 4 por A4 */
+.cadastro-tabs{display:flex;gap:10px;margin:10px 0 20px;flex-wrap:wrap}
+.cadastro-tab{border:1px solid #d8e5ef;padding:12px 17px;background:#fff;border-radius:12px;color:#38506a;font-weight:750;font-size:13px}
+.cadastro-tab.active{background:#153457;border-color:#153457;color:#fff}
+.diary-scan-card{margin:12px 0 18px;border-left:4px solid #0ea77d}
+.diary-scan-card p{margin:7px 0 14px}
+.diary-scan-card .scan-exam-field{max-width:520px}
+.student-scan-name{padding:6px 7px;background:transparent;border:0;color:#15476b;font-weight:750;text-align:left;line-height:1.35;font-size:12px;border-radius:8px;min-width:150px;cursor:pointer}
+.student-scan-name span{color:#0a9774;font-weight:bold;padding-left:5px}
+.student-scan-name:hover,.student-scan-name:focus-visible{background:#e9f7f2;outline:2px solid #28a782}
+.grade-table td:first-child{min-width:180px}
+@media(max-width:680px){.cadastro-tabs{display:grid;grid-template-columns:1fr 1fr}.cadastro-tab{font-size:11px;padding:11px 7px}.diary-scan-card{padding:14px}.student-scan-name{min-width:125px;font-size:11px}}
+@media print{
+ @page{size:A4 portrait;margin:0}
+ html,body{background:#fff!important;margin:0!important;padding:0!important;width:auto!important}
+ .shell,.sidebar,.content-area,.auth-screen,.bottom-nav,.toast{display:none!important}
+ #printRoot{display:block!important;position:static!important;margin:0!important;padding:0!important;width:210mm!important}
+ #printRoot .print-page-v30{width:210mm;height:296.8mm;display:grid!important;grid-template-columns:105mm 105mm;grid-template-rows:148.4mm 148.4mm;break-after:page;page-break-after:always;overflow:hidden!important}
+ #printRoot .print-page-v30:last-child{break-after:auto;page-break-after:auto}
+ #printRoot .quarter-card{width:105mm;height:148.4mm;padding:4mm 4.5mm 3mm;overflow:hidden;position:relative;break-inside:avoid;box-sizing:border-box!important;border:0.22mm dotted #b7b7b7;background:white;display:block}
+ #printRoot .quarter-card.blank-card{border:0}
+ #printRoot .quarter-heading{display:flex;align-items:center;gap:2mm;height:17mm;border-bottom:0.2mm solid #d0d2d5;padding-bottom:1.5mm}
+ #printRoot .quarter-logo{height:8mm;width:8mm;object-fit:contain;flex:none}
+ #printRoot .quarter-heading-txt{display:flex;flex:1;flex-direction:column;gap:0.6mm;min-width:0}
+ #printRoot .quarter-heading-txt strong{font-size:8.5pt;line-height:1.08;color:#142d4c}
+ #printRoot .quarter-heading-txt small{font-size:6.2pt;line-height:1.15;color:#111;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ #printRoot .quarter-qr{width:12mm;height:12mm;display:grid;place-items:center;flex:none;font-size:7pt}
+ #printRoot .quarter-qr canvas,#printRoot .quarter-qr img{height:12mm!important;width:12mm!important;max-width:12mm!important;max-height:12mm!important}
+ #printRoot .quarter-name{font-size:7.2pt;font-weight:700;white-space:nowrap;padding-top:2mm;line-height:4mm;height:7mm}
+ #printRoot .quarter-paper-svg{display:block!important;width:89mm!important;height:auto!important;max-width:100%!important;margin:1mm auto 0!important}
+ #printRoot .quarter-footer{font-size:6.1pt;text-align:center;color:#333;line-height:1.15;margin-top:1mm}
+}
+
+@page diario30{size:A4 landscape;margin:0}
+@media print{
+ #printRoot .print-diary-page{page:diario30;box-sizing:border-box;width:297mm;height:209.5mm;padding:9mm 11mm;break-after:page;page-break-after:always;overflow:hidden;display:block!important}
+ #printRoot .print-diary-page:last-child{break-after:auto;page-break-after:auto}
+ #printRoot .print-diary-head{display:flex;gap:4mm;align-items:center;min-height:21mm;border-bottom:0.4mm solid #168464;margin-bottom:5mm;padding-bottom:3mm}
+ #printRoot .print-diary-head img{height:15mm;width:15mm;object-fit:contain;flex:none}
+ #printRoot .print-diary-head h2{font-size:12pt;color:#1a3657;margin:0 0 2mm}
+ #printRoot .print-diary-head strong{font-size:9pt;color:#1e3851}
+ #printRoot .print-diary-head p{font-size:8pt;margin:2mm 0 0}
+ #printRoot .print-diary-table{border-collapse:collapse;width:100%;font-size:8.5pt}
+ #printRoot .print-diary-table th{background:#14375b;color:#fff;font-weight:bold;padding:3mm 2mm}
+ #printRoot .print-diary-table td{padding:2mm;border-bottom:0.2mm solid #dee5ed}
+ #printRoot .print-diary-table tbody tr:nth-child(even){background:#f3f6fa}
+ #printRoot .print-diary-table th:nth-child(n+3),#printRoot .print-diary-table td:nth-child(n+3){text-align:center;width:23mm}
+ #printRoot .print-diary-table th:first-child,#printRoot .print-diary-table td:first-child{text-align:center;width:10mm}
+ #printRoot .print-diary-page footer{font-size:7pt;color:#555;display:flex;justify-content:space-between;margin-top:5mm}
+}
