@@ -26,3 +26,48 @@
 
 .card-head > svg{width:25px;height:25px;flex:none;color:var(--mint)}.topbar-brand{display:flex;gap:10px;align-items:center}.mobile-brand{display:none;width:39px;height:39px;border-radius:9px;object-fit:cover}
 @media(max-width:680px){.mobile-brand{display:block}.eyebrow{font-size:8px;letter-spacing:1.25px}.topbar h1{font-size:24px}}
+
+/* Corrige+ v2.3: aprovação individual de professores */
+.pending-title{font-size:27px!important;letter-spacing:-.5px!important;color:#153450}
+.approval-info{background:#f4f8fc;border:1px solid #dce6f0;border-radius:14px;padding:12px 14px;text-align:left;word-break:break-word}
+.approval-info p{margin:6px 0;color:#415872;font-size:12px}
+.approval-info code{display:block;font-size:12px;line-height:1.5;color:#18456c;overflow-wrap:anywhere;user-select:all}
+/* Corrige+ (CAC) v2.4: ata fotografada e quadro AV1–AV5 */
+.roster-preview{display:block;width:100%;max-height:245px;object-fit:contain;background:#f6f9fc;border:1px solid var(--line);border-radius:12px;padding:6px}
+.ocr-review{display:grid;gap:10px;padding:15px;border:1px solid #c9e8df;border-radius:14px;background:#f5fcf9}
+.ocr-review h4{margin:0;color:#174a3f}.ocr-review textarea{width:100%;min-height:190px;padding:12px;border-radius:10px;border:1px solid #bedbd5;line-height:1.55;font-family:inherit;font-size:14px;font-weight:500;line-height:1.55;background:white;resize:vertical}
+.ocr-review .actions{display:flex;gap:9px;flex-wrap:wrap}.fallback summary{cursor:pointer;font-size:12px;color:#49627a;font-weight:700}.fallback{padding:8px;border-top:1px solid var(--line)}
+.grade-roster{margin:18px 0}.grade-roster .card-head{display:flex;justify-content:space-between;gap:10px;align-items:center}.grade-roster .card-head h3{margin:0}.grade-table{min-width:650px}.grade-table th:first-child{min-width:195px;position:sticky;left:0;z-index:2;background:#f5f8fb}.grade-table td:first-child{position:sticky;left:0;z-index:1;background:white;min-width:195px}.grade-table th:not(:first-child),.grade-table td:not(:first-child){text-align:center}.grade-table th small{display:block;font-weight:400;font-size:10px;margin-top:3px;color:#8190a2}
+.grade-link{border:1px solid #bfdfd4;background:#e5f8f0;color:#0e7a5d;border-radius:9px;font-weight:800;padding:8px 12px;min-width:52px}.grade-link:hover,.grade-link:focus{outline:2px solid #18ab7d}.grade-pending{color:#a6b1be;font-size:15px}.result-detail{margin:15px 0}.result-detail h3{margin:0}.result-detail .result-summary{margin:14px 0}.av-list{display:flex;gap:7px;flex-wrap:wrap}.print-qr{min-width:27mm}
+@media(max-width:680px){.grade-roster .card-head{align-items:flex-start;flex-direction:column}.ocr-review .actions .btn{flex:1}.grade-roster{margin:15px 0}.grade-table{min-width:590px}.grade-table th:first-child,.grade-table td:first-child{min-width:170px}}
+@media print{#printRoot .print-qr >div{width:27mm;height:27mm;margin:auto}#printRoot .print-qr canvas,#printRoot .print-qr img{width:27mm!important;height:27mm!important;max-width:27mm!important;max-height:27mm!important}}
+
+/* Corrige+ (CAC) v2.5 — navegação trimestral e edição direta das notas. */
+.trimester-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 17px}
+.trimester-tab{border:1px solid #d2e0ed;background:#fff;color:#526780;padding:11px 17px;border-radius:11px;font-size:13px;font-weight:750;min-height:42px;flex:1;white-space:nowrap}
+.trimester-tab.active{background:#13365c;border-color:#13365c;color:#fff;box-shadow:0 4px 12px #152c431c}
+.grade-table{min-width:850px}
+.grade-table td{padding:9px 6px}
+.grade-table th{min-width:89px}
+.grade-table th:last-child{min-width:130px}
+.grade-actions{display:flex;align-items:center;justify-content:center;gap:4px;min-width:71px}
+.grade-cell{border:1px solid #d5dfeb;border-radius:9px;min-width:52px;min-height:34px;padding:7px 10px;font-size:12px;font-weight:800;background:#f8fafc;color:#78869b;cursor:pointer}
+.grade-cell.grade-scan{background:#e4f7ec;border-color:#bde8d4;color:#107a56}
+.grade-cell.grade-manual{background:#e9f2ff;border-color:#bed5fa;color:#194e96}
+.grade-cell.grade-nc{background:#fff0e6;border-color:#ffd0b2;color:#b3531d}
+.grade-cell.grade-empty{background:#f9fafc;border-color:#ebeff3;color:#9aa6b5}
+.grade-detail{border:0;background:transparent;color:#237452;font-weight:850;font-size:18px;line-height:1;padding:8px 4px;min-width:21px}
+.grade-inline-editor{display:flex;flex-direction:column;gap:5px;min-width:111px;max-width:160px}
+.grade-inline-editor input{border:1px solid #85afa4;border-radius:8px;padding:7px 6px;font-size:13px;min-width:0;width:100%;max-width:100%;text-align:center}
+.grade-inline-actions{display:flex;align-items:center;gap:3px;justify-content:center;flex-wrap:wrap}
+.grade-inline-actions button{font:700 11px/1.1 inherit;background:#e9f6f0;color:#146f50;border:1px solid #c8e6d9;border-radius:6px;padding:7px 6px;min-height:26px}
+.grade-inline-actions .edit-nc{background:#fff2e7;border-color:#f4c9a7;color:#a25c1f}
+.grade-inline-actions .edit-clear{background:#f4f6f9;border-color:#e4eaf1;color:#647589}
+.grade-legend{line-height:1.7;margin:11px 2px 1px}
+@media(max-width:680px){.trimester-tabs{gap:5px}.trimester-tab{padding:10px 7px;font-size:11px;min-width:0}.grade-table{min-width:795px}.grade-table th:first-child,.grade-table td:first-child{min-width:155px}}
+
+/* v2.6: registros por disciplina e trimestre */
+.subject-add{display:flex;gap:12px;align-items:end;flex-wrap:wrap}.subject-add .field{flex:1;min-width:220px}.subject-chips,.subject-class-grid{display:flex;flex-wrap:wrap;gap:8px}.subject-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 11px;border-radius:99px;background:#e5f7ed;border:1px solid #c4e9d7;font-size:12px;font-weight:750;color:#0d7055}.subject-chip-delete{border:0;border-radius:50%;font-size:15px;padding:0 4px;background:transparent;color:#a74432}.subject-class{padding:14px 0;border-bottom:1px solid var(--line)}.subject-class>strong{display:block;margin-bottom:10px}.subject-class-grid{margin:0 0 9px}.subject-choice{border:1px solid #d1dbe5;background:#f8fafc;border-radius:11px;padding:9px 12px;color:#50657c;font-weight:700;font-size:12px}.subject-choice.assigned{border-color:#9fdcc7;background:#e6f7ee;color:#08775a}.subject-filter-wrap{margin:15px 0}.journal-filters{display:flex;gap:14px;margin:15px 0;align-items:end;flex-wrap:wrap}.journal-filters>.field{min-width:190px;flex:1}.subject-filter{min-width:175px}.journal-heading{background:linear-gradient(115deg,#18395c,#184b52);color:white;border-radius:16px;padding:19px 22px;margin-bottom:17px}.journal-heading h2{font-size:22px;margin:12px 0 4px}.journal-heading p{margin:0;color:#d0e8df;font-size:12px}.journal-heading .pill{background:#e6fff1;color:#096247}.journal-filters+ .trimester-tabs{margin:12px 0}.subject-inline-note{font-size:12px;color:#60738a}
+@media(max-width:680px){.bottom-nav button{font-size:9px;min-width:0;padding:6px 0}.bottom-nav svg{width:19px;height:19px}.journal-filters{gap:8px}.journal-filters>.field{min-width:135px}.journal-heading h2{font-size:19px}.subject-add .btn{width:100%}}
+/* Deixa os campos do diário acessíveis acima da barra fixa no iPhone. */
+@media(max-width:680px){.grade-cell,.grade-inline-editor,.grade-table td{scroll-margin-bottom:135px;scroll-margin-top:30px}.grade-roster{padding-bottom:36px}.bottom-nav{padding-bottom:calc(10px + env(safe-area-inset-bottom));}}

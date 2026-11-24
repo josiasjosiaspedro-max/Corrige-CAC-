@@ -1,7 +1,8 @@
-/* Preencha APENAS com a URL do projeto e a chave PÚBLICA (publishable) do Supabase.
-   NUNCA use service_role, sb_secret_ ou qualquer senha neste arquivo. */
+/* Configuração pública do Corrige+ (CAC), sem chaves secretas.
+   Projeto compartilhado: Agenda-Professor-EREM-CAC.
+   A autorização dos professores é controlada pelo banco (RLS). */
 window.CORRIGE_CONFIG = {
-  SUPABASE_URL: '',
-  SUPABASE_PUBLISHABLE_KEY: '',
-  ALLOW_SIGNUP: false // habilite temporariamente somente durante o cadastro autorizado dos professores
+  SUPABASE_URL: 'https://lueykolwibxoydkvglhv.supabase.co',
+  SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_pPT2NjLcZgzzh3B9_2LdyA_f9GN3VB8',
+  ALLOW_SIGNUP: true
 };
