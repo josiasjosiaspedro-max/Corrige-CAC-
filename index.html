@@ -1390,7 +1390,7 @@ document.addEventListener('click',ev=>{
 
 /* v3.0.2 — exportação integral antes da exclusão de turma. */
 const home32=renderHome;
-renderHome=function(){return home32().replace(/<section class="hero">[\s\S]*?<\/section>/,'').replace('Versão 3.0.1','Versão 3.2.4');};
+renderHome=function(){return home32().replace(/<section class="hero">[\s\S]*?<\/section>/,'').replace('Versão 3.0.1','Versão 3.2.5');};
 const class32=renderClass31;
 renderClass31=function(id){return class32(id).replace('</div>\n <section class="card stack"',`${btn('deleteClass',icon('trash')+' Apagar turma','btn btn-danger',`data-id="${esc(id)}"`)}</div>\n <section class="card stack"`);};
 let deletePending32=false;
@@ -1520,7 +1520,7 @@ showCornerPreview=function(corners){
  read.centers.forEach((row,q)=>{
   const j=L.indexOf(read.answers[q]);if(j<0)return;
   const [x,y]=row[j];ctx.strokeStyle='#16d47b';ctx.beginPath();
-  for(let k=0;k<=32;k++){const a=k*Math.PI/16;const pt=mapPoint(H,x+read.r*1.18*Math.cos(a),y+read.r*1.18*Math.sin(a));if(k===0)ctx.moveTo(...pt);else ctx.lineTo(...pt);}
+  for(let k=0;k<=32;k++){const a=k*Math.PI/16;const pt=mapPoint(H,x+read.r*1.18*Math.cos(a),y+(read.ry||read.r)*1.18*Math.sin(a));if(k===0)ctx.moveTo(...pt);else ctx.lineTo(...pt);}
   ctx.closePath();ctx.stroke();
  });ctx.restore();
 };
@@ -1627,6 +1627,66 @@ function showCardsPDF321(blob,filename,count,per){
  d.querySelector('#close321').onclick=()=>d.close();d.addEventListener('close',()=>{d.remove();setTimeout(()=>URL.revokeObjectURL(url),120000);},{once:true});d.showModal();
 }
 exportCardsPDF30=function(id,all=false){const e=db.exams.find(x=>x.id===id);if(!e)return toast('Atividade não encontrada.');const per=perPage320(e),count=cardCount320(e,all);if(!count)return toast('Nenhum estudante cadastrado na turma.');try{const slug=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9_-]+/g,'_');const file=`CorrigeCAC_Cartoes_${slug(className(e.classroomId))}_${slug(code25(e))}.pdf`;showCardsPDF321(makeCardsPDF321(e,count),file,count,per);}catch(err){toast('Não foi possível gerar o PDF: '+err.message);}};
+
+/* v3.2.5 — calibração da malha de bolhas após retificação dos quatro marcadores. */
+function readBubbles325(c,e,H){
+ const {data}=c.getContext('2d',{willReadFrequently:true}).getImageData(0,0,c.width,c.height),w=c.width,h=c.height;
+ const mean=a=>a.reduce((s,v)=>s+v,0)/a.length;
+ const median=a=>{const b=a.slice().sort((x,y)=>x-y);return b[Math.floor(b.length/2)];};
+ // Amostragem bilinear em uma imagem retificada; cada fotografia permanece no aparelho.
+ const W=800,HH=834,rect=new Float32Array(W*HH);
+ for(let y=0;y<HH;y++)for(let x=0;x<W;x++){
+  const [px,py]=mapPoint(H,x,y),ix=Math.floor(px),iy=Math.floor(py),fx=px-ix,fy=py-iy;
+  if(ix<0||iy<0||ix+1>=w||iy+1>=h){rect[y*W+x]=255;continue;}
+  const g=(xx,yy)=>{const i=(yy*w+xx)*4;return .299*data[i]+.587*data[i+1]+.114*data[i+2];};
+  rect[y*W+x]=(1-fy)*((1-fx)*g(ix,iy)+fx*g(ix+1,iy))+fy*((1-fx)*g(ix,iy+1)+fx*g(ix+1,iy+1));
+ }
+ const gray=(x,y)=>{const xx=Math.round(x),yy=Math.round(y);return xx<0||yy<0||xx>=W||yy>=HH?255:rect[yy*W+xx];};
+ const trig=Array.from({length:16},(_,k)=>[Math.cos(k*Math.PI/8),Math.sin(k*Math.PI/8)]);
+ function ring(x,y,rx,ry,m){return trig.map(([a,b])=>gray(x+rx*m*a,y+ry*m*b));}
+ function outline(x,y,rx,ry){const outer=median(ring(x,y,rx,ry,1.42));const edge=mean(ring(x,y,rx,ry,1));return Math.max(0,(outer-edge)/Math.max(85,outer));}
+ const candidates=[];
+ for(const layout of omrLayouts34(Number(e.count))){
+  const x0=layout.centers[0][0][0],y0=layout.centers[0][0][1];
+  const sample=layout.centers.flatMap((row,q)=>row.filter((_,j)=>(q%2===0&&j%2===0)||(q===layout.centers.length-1&&j%2===0)));
+  const all=layout.centers.flat();
+  function evaluate(p,full=false){const [dx,dy,sx,sy,ryFactor]=p,rx=layout.r*sx,ry=layout.r*ryFactor;
+   const xmin=x0+dx+(Math.min(...all.map(a=>a[0]))-x0)*sx,xmax=x0+dx+(Math.max(...all.map(a=>a[0]))-x0)*sx;
+   const ymin=y0+dy,ymax=y0+dy+(Math.max(...all.map(a=>a[1]))-y0)*sy;
+   if(xmin-rx*1.5<38||xmax+rx*1.5>762||ymin-ry*1.5<65||ymax+ry*1.5>790)return -1;
+   const a=(full?all:sample).map(([x,y])=>outline(x0+dx+(x-x0)*sx,y0+dy+(y-y0)*sy,rx,ry));
+   return .65*median(a)+.35*mean(a);
+  }
+  let seeds=[];const put=p=>{const score=evaluate(p);if(score<0)return;seeds.push({p,score});};
+  // Busca deslocamento e espaçamento verticais conjuntamente, inclusive cartões esticados no Word.
+  for(let sy=.76;sy<=1.62;sy+=.04)for(let dy=-44;dy<=76;dy+=6)put([0,dy,1,sy,sy]);
+  put([0,0,1,1,1]);
+  seeds.sort((a,b)=>b.score-a.score);const shortlist=seeds.slice(0,8);
+  // Ajuste horizontal, vertical e do raio, sem depender de uma marca preenchida.
+  for(const seed of shortlist){let p=seed.p.slice(),score=seed.score;
+   for(const steps of [[8,5,.025,.025,.1],[3,2,.01,.01,.045],[1,1,.004,.004,.02]]){
+    for(let pass=0;pass<2;pass++)for(let k=0;k<5;k++){
+     let bp=p,bs=score;for(const d of [-2,-1,1,2]){const t=p.slice();t[k]+=d*steps[k];if(Math.abs(t[0])>45||Math.abs(t[1])>95||t[2]<.82||t[2]>1.18||t[3]<.65||t[3]>1.75||t[4]<.65||t[4]>1.8)continue;const v=evaluate(t);if(v>bs){bp=t;bs=v;}}p=bp;score=bs;
+    }
+   }
+   candidates.push({layout,p,score:evaluate(p,true),x0,y0});
+  }
+ }
+ candidates.sort((a,b)=>b.score-a.score);const best=candidates[0];
+ if(!best)return {answers:Array(Number(e.count)).fill(''),confidence:Array.from({length:Number(e.count)},()=>Array(5).fill(0)),centers:[],r:12,valid:false,score:0,layout:'Não identificado'};
+ const {layout,p,x0,y0}=best,[dx,dy,sx,sy,ryFactor]=p,rx=layout.r*sx,ry=layout.r*ryFactor;
+ const centers=layout.centers.map(row=>row.map(([x,y])=>[x0+dx+(x-x0)*sx,y0+dy+(y-y0)*sy]));
+ const rival=candidates.find(v=>v.layout.name!==layout.name);
+ const valid=best.score>=.14&&(!rival||best.score-rival.score>=.025);
+ const confidence=centers.map(row=>row.map(([x,y])=>{
+  const bg=median(ring(x,y,rx,ry,1.42)),inner=[];
+  for(let iy=-4;iy<=4;iy++)for(let ix=-4;ix<=4;ix++)if(ix*ix+iy*iy<=16)inner.push(gray(x+ix*rx*.16,y+iy*ry*.16));
+  return Math.max(0,(bg-mean(inner))/Math.max(85,bg));
+ }));
+ const answers=confidence.map(levels=>{if(!valid)return '';const [a,b]=levels.map((v,i)=>({v,i})).sort((a,b)=>b.v-a.v);return a.v>=.22&&a.v-b.v>=.14&&b.v<Math.max(.20,a.v*.54)?L[a.i]:'';});
+ return {answers,confidence,centers,r:rx,ry,layout:layout.name+' · adaptativo',valid,score:best.score,calibration:p,layoutScores:candidates.map(v=>[v.layout.name,v.score])};
+}
+readBubbles34=readBubbles325;
 
 // A inicialização ocorre depois de todas as extensões (inclusive as de leitura e cadastro).
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();

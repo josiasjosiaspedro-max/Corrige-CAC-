@@ -1,4 +1,4 @@
-CORRIGE+ (CAC) 3.2.4 — atualização de produção
+CORRIGE+ (CAC) 3.2.5 — atualização de produção
 
 1. No Supabase, Authentication > URL Configuration, ADICIONE a URL abaixo em Redirect URLs. Não altere a Site URL nem remova os endereços da Agenda Docente.
 https://josiasjosiaspedro-max.github.io/Corrige-CAC-/
@@ -16,3 +16,5 @@ https://josiasjosiaspedro-max.github.io/Corrige-CAC-/
 Limitações: a configuração de Redirect URLs e o envio ao GitHub precisam ser feitos no painel. A validação do fluxo real de e-mail depende dessas etapas.
 
 7. Novo cabeçalho de cartões: 1º Ano _____, 2º Ano _____ ou 3º Ano _____, sem a letra da turma, tanto no PDF quanto na impressão. O QR continua vinculado à atividade da turma selecionada para evitar registros incorretos. Gere os cartões de cada turma separadamente.
+
+8. Leitor OMR: calibração de posição, espaçamento e proporções das bolhas após detectar os quatro cantos. Mantém os modelos existentes e o QR. Respostas duplas, em branco ou incertas exigem conferência. Testado com a captura enviada (cantos informados a partir da imagem) e seis cartões simulados (5, 10, 15 e 20 questões). Teste a captura automática e o desempenho no iPhone após publicar.
