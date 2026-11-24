@@ -1,31 +1,34 @@
-# Corrige+ (CAC) — Correção v2.7: leitura apenas dos nomes da ata
+# Corrige+ (CAC) — v2.8: leitura completa da ata em partes
 
-Esta atualização resolve a dificuldade de reconhecimento em atas que incluem colunas de **Matrícula, Nome e Assinaturas**.
+## O que mudou
 
-## O que foi alterado
+- A coluna Nome é analisada verticalmente em pequenos trechos com sobreposição. Assim o aplicativo evita reduzir uma foto comprida inteira, preservando a legibilidade dos nomes menores.
+- É possível reler **parte de cima**, **parte do meio** ou **parte de baixo** para recuperar nomes que o OCR ignorou.
+- Os nomes encontrados em uma nova leitura se somam aos anteriores; nomes idênticos são deduplicados.
+- Se o professor escolher outra foto, por exemplo a metade inferior da mesma ata, os nomes já encontrados ou corrigidos não são perdidos.
+- A conferência manual permanece obrigatória. O OCR pode omitir, repetir com grafia diferente ou trocar letras, mesmo após esta melhoria.
 
-- Depois de fotografar ou selecionar uma ata, o aplicativo mostra uma prévia com dois controles para delimitar **somente a coluna Nome**.
-- O botão **Ler apenas os nomes** utiliza OCR local na região delimitada, ignorando matrícula e assinaturas, com filtros de cabeçalhos e ruído.
-- O professor deve revisar os nomes na tela de conferência antes de salvar a turma.
-- A fotografia não é enviada nem salva no Supabase; somente os nomes confirmados entram no diário.
-- Os dados dos trimestres, disciplinas, AT1–AT5, Avaliação, notas manuais, NC, cartões com QR Code e correção óptica foram preservados.
+## Como instalar pelo iPhone
 
-## Atualização fácil pelo iPhone (sem pasta icons)
-
-Acesse o repositório https://github.com/josiasjosiaspedro-max/Corrige-CAC- e substitua **apenas os três arquivos da pasta principal**:
+No repositório https://github.com/josiasjosiaspedro-max/Corrige-CAC- substitua somente estes arquivos **na pasta principal**:
 
 1. `app.js`
 2. `styles.css`
 3. `service-worker.js`
 
-Não é preciso alterar `icons/`, `config.js`, `index.html`, nem o banco Supabase.
+**Não mexa** em `icons`, `index.html`, `config.js`, no Supabase nem nas notas existentes.
 
-Depois de confirmar a alteração, abra https://josiasjosiaspedro-max.github.io/Corrige-CAC-/ no Safari, atualize a página e feche/abra o app da tela inicial caso apareça a versão anterior (cache do aplicativo).
+Se o GitHub Pages exibir a versão antiga, atualize o Safari e feche e abra o aplicativo adicionado à tela inicial. O cache do PWA foi aumentado para v2.8.0.
 
-## Observações
+## Teste na ata
 
-- Em fotos que não tenham colunas padronizadas, ajuste os controles horizontalmente até que a região transparente contenha somente os nomes.
-- Se a leitura estiver incompleta, aproxime a câmera, melhore a iluminação ou use uma imagem recortada diretamente da coluna Nome.
-- A ferramenta de OCR precisa de internet para carregar os componentes na primeira utilização. A precisão não pode ser garantida em todas as imagens; confira cada nome antes de salvar.
-- O CSV `Nomes_Turma_2_Ano_C_CorrigeCAC.csv` é uma alternativa extraída visualmente da foto enviada, com **39 nomes**. Confira os nomes antes do uso oficial.
-- Não envie nomes de estudantes ao repositório público do GitHub. O CSV com nomes deve ficar apenas no dispositivo/conta segura do professor, e não deve ser incluído no ZIP de atualização.
+1. Abra a turma e selecione a mesma foto.
+2. Ajuste as bordas para deixar apenas a coluna **Nome**.
+3. Toque em **Ler lista completa (em partes)**.
+4. Confira a lista de nomes. Para recuperar os ausentes, toque em **Parte de cima**, **Parte do meio** ou **Parte de baixo**. As próximas leituras *acrescentam* nomes.
+5. Se ainda faltarem nomes, fotografe separadamente a parte da ata que falta, selecione **Escolher foto** e repita a leitura. Os nomes anteriores serão preservados.
+6. Confira as grafias e só então toque em **Confirmar e gerar tabela**.
+
+**Privacidade:** não envie fotografias das listas nem nomes reais ao GitHub público. A leitura ocorre no dispositivo; apenas os nomes confirmados são armazenados no banco institucional para contas autorizadas.
+
+**Validação:** o procedimento de união/deduplicação foi testado no navegador com resultados simulados de OCR e foram executados testes de regressão das outras telas. A precisão em fotografias reais precisa ser testada no iPhone; não há garantia de reconhecer 100% das linhas.

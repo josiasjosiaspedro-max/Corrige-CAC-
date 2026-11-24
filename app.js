@@ -1,5 +1,5 @@
 'use strict';
-/* Corrige+ (CAC) v2.7 — importação apenas dos nomes da ata, QR+OMR, diário por trimestre e disciplina. */
+/* Corrige+ (CAC) v2.8 — leitura da ata em faixas com recuperação de nomes parciais; demais recursos preservados. */
 const STORE_KEY='corrige-cac-demonstracao-v2';
 const L=['A','B','C','D','E'];
 const POINTS=[[30,28],[770,28],[770,805],[30,805]];
@@ -12,7 +12,7 @@ let db=emptyDB();
 let tab='home', creating=false, draft={name:'',classroomId:'',count:10,key:Array(10).fill(''),avSlot:1,maxScore:10};
 let scanExamId='', cameraStream=null, scanCanvas=null,manualCorners=[],proposed=null,manualMode=false;
 let mode='demo', client=null,user=null,authSignup=false,passwordReset=false,selectedClassId='',detailResultId='';
-let stagedNames=[],rosterPhotoUrl='',rosterBusy=false;
+let stagedNames=[],rosterPhotoUrl='',rosterBusy=false,rosterProgress='';
 let rosterColumnLeft=30,rosterColumnRight=88; // Fração horizontal escolhida para a coluna Nome; matrícula e assinaturas ficam fora.
 function toast(msg){const t=el('toast');t.textContent=msg;t.classList.add('visible');clearTimeout(toast.timer);toast.timer=setTimeout(()=>t.classList.remove('visible'),4700);}
 function uid(){if(globalThis.crypto?.randomUUID)return crypto.randomUUID();return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&3|8)).toString(16);});}
@@ -139,11 +139,11 @@ function empty(title,desc,action,label){return `<div class="empty"><div class="b
 function className(id){return db.classes.find(x=>x.id===id)?.name||'';}
 function renderClasses(){const active=selectedClassId||db.classes[0]?.id||'';selectedClassId=active;
  const options=db.classes.map(c=>`<option value="${esc(c.id)}" ${active===c.id?'selected':''}>${esc(c.name)}</option>`).join('');
- const photo=rosterPhotoUrl?`<section class="roster-column-tool"><h4>Selecione somente a coluna Nome</h4><p class="muted-note">Mova os controles até a região transparente conter todos os nomes, sem matrícula nem assinaturas. Deslize a imagem para conferir as linhas inferiores.</p><div class="roster-crop-scroll"><div class="roster-crop-stage"><img id="rosterImage" src="${esc(rosterPhotoUrl)}" alt="Foto da ata para selecionar a coluna de nomes"><div class="roster-mask roster-mask-left" style="width:${rosterColumnLeft}%"></div><div class="roster-mask roster-mask-right" style="width:${100-rosterColumnRight}%"></div><div class="roster-selection" style="left:${rosterColumnLeft}%;right:${100-rosterColumnRight}%"></div></div></div><label class="field">Início da coluna Nome <input id="rosterCropLeft" type="range" min="0" max="80" step="1" value="${rosterColumnLeft}" aria-label="Limite esquerdo da coluna Nome"></label><label class="field">Fim da coluna Nome <input id="rosterCropRight" type="range" min="20" max="100" step="1" value="${rosterColumnRight}" aria-label="Limite direito da coluna Nome"></label><div class="actions">${btn('recognizeRoster',`${icon('scan')} Ler apenas os nomes`,'btn btn-primary',rosterBusy?'disabled':'')}${btn('resetRosterCrop','Ajustar seleção inicial','btn')}</div><p class="muted-note">Apenas a parte transparente será reconhecida. O aplicativo não utiliza os números de matrícula.</p></section>`:'';
- const staged=stagedNames.length?`<section class="ocr-review"><h4>Conferência dos nomes (${stagedNames.length})</h4><p class="muted">Verifique um nome por linha. Corrija ou exclua qualquer linha incorreta antes de salvar. Somente os nomes confirmados são armazenados.</p><textarea id="rosterNames" rows="9" spellcheck="false" aria-label="Nomes extraídos da ata, um por linha">${esc(stagedNames.join('\n'))}</textarea><div class="actions">${btn('confirmRoster',`${icon('check')} Confirmar e gerar tabela`,'btn btn-primary')}${btn('clearRoster','Descartar','btn')}</div></section>`:'';
+ const photo=rosterPhotoUrl?`<section class="roster-column-tool"><h4>Selecione somente a coluna Nome</h4><p class="muted-note">Mova os controles até a região transparente conter todos os nomes, sem matrícula nem assinaturas. Deslize a imagem para conferir as linhas inferiores.</p><div class="roster-crop-scroll"><div class="roster-crop-stage"><img id="rosterImage" src="${esc(rosterPhotoUrl)}" alt="Foto da ata para selecionar a coluna de nomes"><div class="roster-mask roster-mask-left" style="width:${rosterColumnLeft}%"></div><div class="roster-mask roster-mask-right" style="width:${100-rosterColumnRight}%"></div><div class="roster-selection" style="left:${rosterColumnLeft}%;right:${100-rosterColumnRight}%"></div></div></div><label class="field">Início da coluna Nome <input id="rosterCropLeft" type="range" min="0" max="80" step="1" value="${rosterColumnLeft}" aria-label="Limite esquerdo da coluna Nome"></label><label class="field">Fim da coluna Nome <input id="rosterCropRight" type="range" min="20" max="100" step="1" value="${rosterColumnRight}" aria-label="Limite direito da coluna Nome"></label><div class="actions">${btn('recognizeRoster',`${icon('scan')} Ler lista completa (em partes)`,'btn btn-primary',rosterBusy?'disabled':'')}${btn('resetRosterCrop','Ajustar seleção inicial','btn')}</div><p class="muted-note">Se faltarem nomes, use um dos botões abaixo. Cada nova leitura <strong>acrescenta os nomes encontrados</strong>, sem apagar os anteriores.</p><div class="roster-part-actions">${btn('recognizeRosterPart','Parte de cima','btn btn-sm',`data-part="top" ${rosterBusy?'disabled':''}`)}${btn('recognizeRosterPart','Parte do meio','btn btn-sm',`data-part="middle" ${rosterBusy?'disabled':''}`)}${btn('recognizeRosterPart','Parte de baixo','btn btn-sm',`data-part="bottom" ${rosterBusy?'disabled':''}`)}</div><div id="rosterProgress" class="roster-progress" role="status" aria-live="polite">${esc(rosterProgress)}</div><p class="muted-note">Apenas a parte transparente é analisada; números de matrícula e assinaturas ficam fora. Todas as leituras precisam de conferência.</p></section>`:'';
+ const staged=stagedNames.length?`<section class="ocr-review"><h4>Conferência dos nomes (${stagedNames.length})</h4><p class="muted">Confira se <strong>todos</strong> os estudantes estão aqui, um nome por linha. Você pode corrigir, apagar ou digitar os nomes que faltarem. Não salve uma lista incompleta.</p><textarea id="rosterNames" rows="9" spellcheck="false" aria-label="Nomes extraídos da ata, um por linha">${esc(stagedNames.join('\n'))}</textarea><div class="actions">${btn('confirmRoster',`${icon('check')} Confirmar e gerar tabela`,'btn btn-primary')}${btn('clearRoster','Descartar','btn')}</div></section>`:'';
  return `<div class="toolbar"><p class="muted">Cadastre a turma e use a câmera para reconhecer os nomes da ata.</p></div>
  <div class="roster-grid"><article class="card stack"><h3>Cadastrar turma</h3><form id="classForm" class="stack"><label class="field">Nome da turma<input name="name" required maxlength="60" placeholder="Ex.: 3º Ano A"></label><div class="form-grid"><label class="field">Série<input name="grade" maxlength="40" placeholder="Ex.: 3º EM"></label><label class="field">Turno<select name="shift"><option>Integral</option><option>Manhã</option><option>Tarde</option><option>Noite</option></select></label></div><label class="field">Ano letivo<input name="year" type="number" min="2020" max="2100" value="${new Date().getFullYear()}"></label><button class="btn btn-primary" type="submit">${icon('add')} Salvar turma</button></form><div class="divider"></div><h3>Turmas cadastradas</h3>${db.classes.length?db.classes.map(c=>`<div class="exam-row"><div><strong>${esc(c.name)}</strong><p>${esc(c.grade||'')} · ${c.year||''} · ${db.students.filter(s=>s.classroomId===c.id).length} alunos</p></div><div class="actions">${btn('pickClass','Abrir','btn btn-sm',`data-id="${esc(c.id)}"`)}${btn('deleteClass',icon('trash'),'btn btn-danger btn-sm',`data-id="${esc(c.id)}"`)}</div></div>`).join(''):'<p class="muted">Nenhuma turma cadastrada.</p>'}</article>
- <article class="card stack"><h3>Importar nomes pela foto da ata</h3>${db.classes.length?`<label class="field">Escolha a turma<select id="rosterClass">${options}</select></label><div class="actions"><label class="btn btn-primary upload-label">${icon('camera')} Tirar foto da ata<input id="rosterPhotoCamera" type="file" accept="image/*" capture="environment" aria-label="Fotografar ata"></label><label class="btn upload-label">Escolher foto<input id="rosterPhotoGallery" type="file" accept="image/*" aria-label="Selecionar foto da galeria"></label></div><p class="muted-note">Selecione apenas a coluna dos nomes. Matrículas e assinaturas serão ignoradas. O reconhecimento acontece no aparelho; a imagem não é enviada nem armazenada no Supabase. A primeira leitura exige internet para carregar a ferramenta.</p>${photo}${rosterBusy?'<div class="notice">Reconhecendo os nomes… não feche esta tela.</div>':''}${staged}<details class="fallback"><summary>Adicionar nome manualmente (alternativa)</summary><form id="studentForm" class="stack" style="margin-top:12px"><label class="field">Nome<input name="name" maxlength="100" required></label><label class="field">Número (opcional)<input name="code" maxlength="50"></label><button class="btn" type="submit">Adicionar estudante</button></form></details><label class="field">Ou importar lista CSV<input id="studentCsv" type="file" accept=".csv,text/csv,text/plain"></label>`:'<p class="muted">Crie uma turma antes de fotografar a ata.</p>'}</article></div>
+ <article class="card stack"><h3>Importar nomes pela foto da ata</h3>${db.classes.length?`<label class="field">Escolha a turma<select id="rosterClass">${options}</select></label><div class="actions"><label class="btn btn-primary upload-label">${icon('camera')} Tirar foto da ata<input id="rosterPhotoCamera" type="file" accept="image/*" capture="environment" aria-label="Fotografar ata"></label><label class="btn upload-label">Escolher foto<input id="rosterPhotoGallery" type="file" accept="image/*" aria-label="Selecionar foto da galeria"></label></div><p class="muted-note">Selecione só a coluna Nome. Se a foto for comprida, a leitura será dividida em trechos. Também é possível fotografar <strong>o restante da lista</strong> e acrescentar os nomes à conferência. A foto é processada no aparelho e não é salva no Supabase; a primeira leitura exige internet para carregar a ferramenta.</p>${photo}${rosterBusy?'<div class="notice">Reconhecendo os nomes… não feche esta tela.</div>':''}${staged}<details class="fallback"><summary>Adicionar nome manualmente (alternativa)</summary><form id="studentForm" class="stack" style="margin-top:12px"><label class="field">Nome<input name="name" maxlength="100" required></label><label class="field">Número (opcional)<input name="code" maxlength="50"></label><button class="btn" type="submit">Adicionar estudante</button></form></details><label class="field">Ou importar lista CSV<input id="studentCsv" type="file" accept=".csv,text/csv,text/plain"></label>`:'<p class="muted">Crie uma turma antes de fotografar a ata.</p>'}</article></div>
  ${db.classes.length?`<section class="card grade-roster"><div class="card-head"><div><h3>Quadro de notas</h3><p class="muted">A tabela nasce com os nomes da ata e 5 colunas de avaliação.</p></div><span class="pill pill-green">AV1 · AV2 · AV3 · AV4 · AV5</span></div>${gradeTableForClass(active,true)}</section>`:''}`;
 }
 
@@ -168,7 +168,22 @@ function extractRosterLines(text){
  }
  return names.slice(0,200);
 }
-function clearRoster(){stagedNames=[];if(rosterPhotoUrl){URL.revokeObjectURL(rosterPhotoUrl);rosterPhotoUrl='';}rosterColumnLeft=30;rosterColumnRight=88;render();}
+function rosterDraftNames(){
+ const text=el('rosterNames')?.value;
+ if(text!==undefined)stagedNames=text.split(/\r?\n/).map(x=>x.trim().replace(/\s+/g,' ')).filter(Boolean);
+ return stagedNames;
+}
+function rosterDedup(base,found){
+ const norm=s=>String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleUpperCase('pt-BR').replace(/[^A-Z ]/g,'').replace(/\s+/g,' ').trim();
+ const seen=new Set(base.map(norm)),all=base.slice();
+ for(const name of found){const key=norm(name);if(key&&!seen.has(key)){all.push(name);seen.add(key);}}
+ return all.slice(0,200);
+}
+function rosterUpdateProgress(text){rosterProgress=text;const node=el('rosterProgress');if(node)node.textContent=text;}
+function clearRoster(){
+ stagedNames=[];rosterProgress='';if(rosterPhotoUrl){URL.revokeObjectURL(rosterPhotoUrl);rosterPhotoUrl='';}
+ rosterColumnLeft=30;rosterColumnRight=88;render();
+}
 function adjustRosterCrop(){
  const left=el('rosterCropLeft'),right=el('rosterCropRight');if(!left||!right)return;
  let l=Number(left.value),r=Number(right.value);
@@ -184,29 +199,58 @@ async function readRosterPhoto(file){
  if(!/^image\//.test(file.type))return toast('Selecione uma fotografia válida.');
  if(file.size>15*1024*1024)return toast('Foto muito grande. Escolha uma imagem com até 15 MB.');
  if(rosterBusy)return;
+ rosterDraftNames(); // Não perder nomes já corrigidos, caso outra foto seja escolhida.
  if(rosterPhotoUrl)URL.revokeObjectURL(rosterPhotoUrl);
- rosterPhotoUrl=URL.createObjectURL(file);stagedNames=[];rosterColumnLeft=30;rosterColumnRight=88;
- render();toast('Ajuste a região destacada para conter somente os nomes e toque em “Ler apenas os nomes”.');
+ rosterPhotoUrl=URL.createObjectURL(file);rosterColumnLeft=30;rosterColumnRight=88;rosterProgress='';
+ render();toast(stagedNames.length?'Nova foto pronta. A leitura acrescentará nomes aos anteriores.':'Ajuste a coluna Nome e toque em “Ler lista completa (em partes)”.');
 }
-async function recognizeRoster(){
+async function recognizeRoster(part='all'){
  if(rosterBusy||!rosterPhotoUrl)return;
- rosterBusy=true;stagedNames=[];render();let worker;
+ const options={all:[0,1],top:[0,.43],middle:[.29,.73],bottom:[.61,1]};
+ const [rangeStart,rangeEnd]=options[part]||options.all;
+ rosterDraftNames();
+ rosterBusy=true;rosterUpdateProgress('Preparando leitura em partes…');render();let worker;
  try{
   if(!window.Tesseract){await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';script.onload=resolve;script.onerror=()=>reject(Error('Não foi possível carregar o reconhecimento de texto. Confira a internet.'));document.head.appendChild(script);});}
   const img=new Image();await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('Foto inválida.'));img.src=rosterPhotoUrl;});
   const sx=Math.round(img.naturalWidth*rosterColumnLeft/100),sw=Math.round(img.naturalWidth*(rosterColumnRight-rosterColumnLeft)/100);
   if(sw<=0)throw Error('Ajuste a largura da seleção.');
-  const scale=Math.min(2.5,3400/img.naturalHeight,2400/sw);
-  const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(sw*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
-  const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.filter='grayscale(1) contrast(1.45)';ctx.drawImage(img,sx,0,sw,img.naturalHeight,0,0,canvas.width,canvas.height);ctx.filter='none';
+  // Uma imagem alta inteira perde detalhes no redimensionamento; dividir em faixas evita isso.
+  const rangeHeight=(rangeEnd-rangeStart)*img.naturalHeight;
+  const parts=Math.min(8,Math.max(2,Math.ceil(rangeHeight/Math.max(280,sw*.95))));
+  const scale=Math.max(.65,Math.min(3.2,2400/sw,2000/(rangeHeight/parts*1.24)));
   worker=await Tesseract.createWorker('por');
   await worker.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'1'});
-  const result=await worker.recognize(canvas);
-  stagedNames=extractRosterLines(result.data?.text||'');
-  toast(stagedNames.length?`${stagedNames.length} possíveis nomes identificados. Revise antes de salvar.`:'Nenhum nome identificado. Ajuste a coluna ou digite os nomes na conferência.');
+  const current=stagedNames.slice(),collected=[];
+  for(let i=0;i<parts;i++){
+   const baseStart=rangeStart+(rangeEnd-rangeStart)*i/parts;
+   const baseEnd=rangeStart+(rangeEnd-rangeStart)*(i+1)/parts;
+   // Sobreposição de 16% da faixa para não cortar nomes na passagem de um trecho a outro.
+   const padding=(baseEnd-baseStart)*.16;
+   const top=Math.max(0,baseStart-(i?padding:0));
+   const bottom=Math.min(1,baseEnd+(i+1<parts?padding:0));
+   const sy=Math.round(top*img.naturalHeight),sh=Math.min(img.naturalHeight-sy,Math.max(1,Math.ceil((bottom-top)*img.naturalHeight)));
+   const canvas=document.createElement('canvas');
+   canvas.width=Math.max(1,Math.round(sw*scale));canvas.height=Math.max(1,Math.round(sh*scale));
+   const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);
+   ctx.filter='grayscale(1) contrast(1.45)';ctx.drawImage(img,sx,sy,sw,sh,0,0,canvas.width,canvas.height);ctx.filter='none';
+   rosterUpdateProgress(`Lendo trecho ${i+1} de ${parts}… ${rosterDedup([],collected).length} nomes encontrados.`);
+   let recognized='';
+   try{
+    const output=await worker.recognize(canvas);recognized=output.data?.text||'';
+    let found=extractRosterLines(recognized);
+    if(!found.length){await worker.setParameters({tessedit_pageseg_mode:'11'});const other=await worker.recognize(canvas);found=extractRosterLines(other.data?.text||'');await worker.setParameters({tessedit_pageseg_mode:'6'});}
+    collected.push(...found);
+   }catch(e){console.warn('OCR do trecho',i+1,e);}
+   // Libera a memória de imagem após cada trecho no iPhone.
+   canvas.width=1;canvas.height=1;
+  }
+  stagedNames=rosterDedup(current,collected);
+  const newCount=stagedNames.length-current.length;
+  rosterUpdateProgress(`${stagedNames.length} nomes na conferência (${newCount} novos nesta leitura). Confira a lista toda antes de salvar.`);
+  toast(newCount?`${newCount} nomes acrescentados. Confira a lista inteira.`:'Nenhum nome novo. Tente ler a parte que falta ou outra foto.');
   if(!stagedNames.length)stagedNames=[''];
- }catch(error){stagedNames=[''];toast('Leitura não concluída: '+(error.message||'confira a imagem e a conexão.'));}
+ }catch(error){rosterUpdateProgress('Leitura não concluída. Tente outra foto ou um trecho.');if(!stagedNames.length)stagedNames=[''];toast('Leitura não concluída: '+(error.message||'confira a imagem e a conexão.'));}
  finally{if(worker)try{await worker.terminate();}catch{}rosterBusy=false;render();}
 }
 async function confirmRoster(){
@@ -373,7 +417,8 @@ document.addEventListener('click',async event=>{const node=event.target.closest(
   case 'exportGrades':exportCSV();break;
   case 'gotoClasses':go('classes');break;
   case 'clearRoster':clearRoster();break;
-  case 'recognizeRoster':await recognizeRoster();break;
+  case 'recognizeRoster':await recognizeRoster('all');break;
+  case 'recognizeRosterPart':await recognizeRoster(node.dataset.part);break;
   case 'resetRosterCrop':rosterColumnLeft=30;rosterColumnRight=88;render();break;
   case 'confirmRoster':await confirmRoster();break;
   case 'showResult':detailResultId=id;render();break;
@@ -565,6 +610,6 @@ document.addEventListener('change',ev=>{const x=ev.target;
 document.addEventListener('click',async ev=>{const node=ev.target.closest('[data-action]');if(!node)return;const act=node.dataset.action;if(act==='v26Subjects'){go('subjects');return;}if(act==='v26Assign'){await assignSubject26(node.dataset.class,node.dataset.subject);return;}if(act==='v26DeleteSubject'){await deleteSubject26(node.dataset.id);return;}if(act==='pickScan'){const e=db.exams.find(e=>e.id===node.dataset.id);if(e){selectedClassId=e.classroomId;selectedSubjectId=e.subjectId;trimester25Selected=trimester25(e);}}},true);
 document.addEventListener('submit',async ev=>{if(ev.target.id!=='subject26Form')return;ev.preventDefault();await addSubject26(ev.target);});
 
-document.addEventListener('input',event=>{if(event.target?.id==='rosterCropLeft'||event.target?.id==='rosterCropRight')adjustRosterCrop();});
+document.addEventListener('input',event=>{if(event.target?.id==='rosterCropLeft'||event.target?.id==='rosterCropRight')adjustRosterCrop();else if(event.target?.id==='rosterNames')rosterDraftNames();});
 
 initialize();

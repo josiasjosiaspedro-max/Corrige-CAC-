@@ -84,3 +84,10 @@
 .roster-column-tool .field{gap:6px;font-size:12px}
 .roster-column-tool .actions{display:flex;flex-wrap:wrap;gap:8px}
 .roster-column-tool .actions button{flex:1 1 auto;min-height:42px}
+
+/* Corrige+ 2.8: leitura incremental de atas longas */
+.roster-part-actions{display:flex;flex-wrap:wrap;gap:8px;margin:9px 0 12px;}
+.roster-part-actions .btn{flex:1 1 135px;justify-content:center;}
+.roster-progress{min-height:30px;padding:8px 10px;border-radius:10px;background:#e9f6f0;color:#164d39;font-size:13px;font-weight:600;line-height:1.4;margin-bottom:8px;}
+.roster-progress:empty{display:none;}
+.ocr-review textarea{min-height:220px;white-space:pre-wrap;font-variant-numeric:tabular-nums;}
