@@ -405,7 +405,7 @@ document.addEventListener('click',async event=>{const node=event.target.closest(
   case 'deleteExam':await deleteExam(id);break;
   case 'deleteClass':await deleteClass(id);break;
   case 'deleteStudent':await deleteStudent(id);break;
-  case 'pickClass':selectedClassId=id;render();break;
+  case 'pickClass':if(tab==='cadastros'){openClass31(id);break;}selectedClassId=id;render();break;
   case 'startCamera':await startCamera();break;
   case 'capture':capture();break;
   case 'detect':tryRead();break;
@@ -844,6 +844,7 @@ const oldRenderHome29=renderHome;renderHome=function(){return oldRenderHome29().
 
 /* Corrige+ (CAC) v3.0 — Cadastros separados, correção por estudante e PDFs compactos. */
 let cadastroArea30='turmas';
+let openedClass31='';
 let selectedScanStudentId30='';
 let selectedExamDiary30='';
 const SCHOOL30='EREM CÔNEGO ALEXANDRE CAVALCANTI';
@@ -858,7 +859,7 @@ MENU.splice(0, MENU.length,
  ['scan','Corrigir','scan']
 );
 const oldGo30=go;
-go=function(where){if(where==='classes'||where==='subjects'){cadastroArea30=where==='subjects'?'disciplinas':'turmas';where='cadastros';}if(tab==='scan'&&where!=='scan')selectedScanStudentId30='';oldGo30(where);};
+go=function(where){openedClass31='';if(where==='classes'||where==='subjects'){cadastroArea30=where==='subjects'?'disciplinas':'turmas';where='cadastros';}if(tab==='scan'&&where!=='scan')selectedScanStudentId30='';oldGo30(where);};
 const oldRender30=render;
 render=function(){
  if(tab==='cadastros'){
@@ -870,6 +871,7 @@ render=function(){
  if(tab==='exams')el('pageTitle').textContent='Atividades por trimestre';
 };
 function renderCadastros30(){
+ if(cadastroArea30==='turmas'&&openedClass31&&db.classes.some(c=>c.id===openedClass31))return renderClass31(openedClass31);
  const section=cadastroArea30==='disciplinas' ? renderSubjects26():renderClasses();
  // Cadastro não é um segundo diário; evitar que duas tabelas de notas apareçam em áreas diferentes.
  const cutoff=section.indexOf('<section class="card grade-roster">');
@@ -903,7 +905,7 @@ renderHome=function(){
  return content
  .replace('Fotografe a ata.<br>Corrija e registre as notas.','Cadastre, corrija e organize<br>as notas por trimestre.')
  .replace(/AV1 a AV5/g,'AT1 a AT5')
- .replace(/Versão 2\.[0-9]+/g,'Versão 3.0')
+ .replace(/Versão 2\.[0-9]+/g,'Versão 3.0.1')
  .replace(/data-action="gotoClasses"/g,'data-action="v30GotoCadastros"')
  .replace(/<h2 class="section-title">O que deseja fazer\?<\/h2>/, '<h2 class="section-title">O que deseja fazer?</h2>')
  + `<div class="notice green" style="margin-top:20px"><strong>Fluxo de correção:</strong> abra o Diário, escolha a atividade, toque no <strong>nome do estudante</strong> e leia o cartão-resposta dele. O mesmo modelo de cartão serve para toda a turma.</div>`;
@@ -1057,7 +1059,7 @@ async function exportDiaryPDF30(){
 document.addEventListener('click',async ev=>{
  const control=ev.target.closest('[data-action]');if(!control)return;
  const act=control.dataset.action;
- if(act==='cadastroArea30'){cadastroArea30=control.dataset.section==='disciplinas'?'disciplinas':'turmas';render();}
+ if(act==='cadastroArea30'){openedClass31='';cadastroArea30=control.dataset.section==='disciplinas'?'disciplinas':'turmas';render();}
  else if(act==='v30GotoCadastros'){cadastroArea30='turmas';go('cadastros');}
  else if(act==='v30ExportPDF'){await exportDiaryPDF30();}
  else if(act==='v30OpenDiary'){const e=db.exams.find(x=>x.id===control.dataset.id);if(e){selectedClassId=e.classroomId;selectedSubjectId=e.subjectId;trimester25Selected=trimester25(e);selectedExamDiary30=e.id;go('results');}}
@@ -1146,3 +1148,92 @@ document.addEventListener('click',async event=>{
  const node=event.target.closest('[data-action="v30CardsPdf"]');if(!node)return;
  await exportCardsPDF30(node.dataset.id,node.dataset.all==='1');
 },true);
+
+/* v3.0.1 — abertura explícita da turma, independente de disciplina ou diário. */
+function openClass31(id){
+ const c=db.classes.find(x=>x.id===id);if(!c)return toast('Turma não encontrada.');
+ if(rosterBusy)return toast('Aguarde a leitura da ata antes de abrir a turma.');
+ if((stagedNames.length||rosterPhotoUrl)&&selectedClassId!==id){toast('Confirme ou descarte a importação atual antes de trocar de turma.');return;}
+ selectedClassId=id;openedClass31=id;cadastroArea30='turmas';render();
+ window.scrollTo({top:0,behavior:'instant'});
+}
+function renderClass31(id){
+ const c=db.classes.find(x=>x.id===id);if(!c)return '';
+ const students=db.students.filter(s=>s.classroomId===id).slice().sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+ return `<div class="journal-heading"><span class="pill pill-green">TURMA CADASTRADA</span><h2>${esc(c.name)}</h2><p>${[c.grade,c.shift,c.year].filter(Boolean).map(esc).join(' · ')} · ${students.length} estudantes</p></div>
+ <div class="actions">${btn('v31BackClasses','← Voltar às turmas')}${btn('v31Diary','Abrir Diário de Notas','btn btn-primary')}${btn('v31Import','Importar nomes','btn')}</div>
+ <section class="card stack" style="margin-top:16px"><div class="card-head"><div><h3>Estudantes cadastrados</h3><p class="muted">${students.length} estudante(s) nesta turma. As notas ficam no Diário.</p></div></div>
+ ${students.length?`<div class="table-scroller"><table class="data-table"><thead><tr><th>Nº</th><th>Nome do estudante</th><th>Ações</th></tr></thead><tbody>${students.map((s,i)=>`<tr><td>${i+1}</td><td style="white-space:normal;overflow-wrap:anywhere"><strong>${esc(s.name)}</strong>${s.code?`<div class="muted">${esc(s.code)}</div>`:''}</td><td>${btn('deleteStudent',icon('trash'),'btn btn-danger btn-sm',`data-id="${esc(s.id)}" aria-label="Excluir ${esc(s.name)}"`)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="notice">Nenhum estudante cadastrado. Importe a ata ou adicione um nome manualmente.</div>'}
+ <details class="fallback"><summary>Adicionar estudante manualmente</summary><form id="studentForm" class="stack" style="margin-top:12px"><label class="field">Nome<input name="name" maxlength="100" required></label><label class="field">Número (opcional)<input name="code" maxlength="50"></label><button type="submit" class="btn btn-primary">Adicionar estudante</button></form></details></section>`;
+}
+document.addEventListener('click',ev=>{
+ const action=ev.target.closest('[data-action]')?.dataset.action;
+ if(!['v31BackClasses','v31Diary','v31Import'].includes(action))return;
+ if(action==='v31Diary'){selectedClassId=openedClass31;ensureSubject26(selectedClassId);detailResultId='';selectedExamDiary30='';go('results');return;}
+ openedClass31='';render();
+ if(action==='v31Import')el('rosterClass')?.scrollIntoView({block:'center',behavior:'smooth'});
+ else window.scrollTo({top:0,behavior:'instant'});
+});
+
+/* v3.0.2 — exportação integral antes da exclusão de turma. */
+const home32=renderHome;
+renderHome=function(){return home32().replace(/<section class="hero">[\s\S]*?<\/section>/,'').replace('Versão 3.0.1','Versão 3.0.2');};
+const class32=renderClass31;
+renderClass31=function(id){return class32(id).replace('</div>\n <section class="card stack"',`${btn('deleteClass',icon('trash')+' Apagar turma','btn btn-danger',`data-id="${esc(id)}"`)}</div>\n <section class="card stack"`);};
+let deletePending32=false;
+function chooseDelete32(c){return new Promise(resolve=>{
+ const d=document.createElement('dialog');d.setAttribute('aria-label','Apagar turma');d.style.cssText='width:min(92vw,450px);max-height:90vh;border:1px solid #dce2e9;border-radius:20px;padding:22px;color:#17233c;background:#fff;box-shadow:0 20px 80px #0005';
+ d.innerHTML=`<div class="stack"><h2 style="margin:0">Apagar turma?</h2><p><strong>${esc(c.name)}</strong></p><p>Todos os estudantes, atividades, notas e correções desta turma serão excluídos definitivamente. As outras turmas e o cadastro geral de disciplinas serão mantidos.</p><h3>Deseja exportar os dados antes?</h3><button type="button" class="btn btn-primary" data-choice="pdf">${icon('download')} Sim — exportar PDF</button><button type="button" class="btn btn-primary" data-choice="xlsx">${icon('download')} Sim — exportar Excel (.xlsx)</button><button type="button" class="btn btn-danger" data-choice="none">Não — apagar sem exportar</button><button type="button" class="btn" data-choice="cancel">Cancelar</button></div>`;
+ const style=document.createElement('style');style.textContent='dialog::backdrop{background:rgba(13,25,44,.55)}';d.append(style);document.body.append(d);
+ let done=false;const finish=v=>{if(done)return;done=true;d.close();d.remove();resolve(v);};d.addEventListener('click',e=>{const v=e.target.closest('[data-choice]')?.dataset.choice;if(v)finish(v);});d.addEventListener('cancel',e=>{e.preventDefault();finish('cancel');});d.showModal();
+ });}
+function classSnapshot32(id){const students=db.students.filter(s=>s.classroomId===id),exams=db.exams.filter(e=>e.classroomId===id),eids=new Set(exams.map(e=>e.id));return {c:db.classes.find(c=>c.id===id),students,exams,results:db.results.filter(r=>eids.has(r.examId)),grades:db.gradeEntries.filter(g=>g.classroomId===id),links:db.classSubjects.filter(a=>a.classroomId===id),subjects:db.subjects};}
+async function cloudSnapshot32(id){
+ const teacher=user.id;
+ async function all(table,field,value){let out=[];for(let i=0;;i+=500){let q=client.from(table).select('*').eq('teacher_id',teacher).order('id').range(i,i+499);q=Array.isArray(value)?q.in(field,value):q.eq(field,value);const {data,error}=await q;if(error)throw Error(error.message);out.push(...data);if(data.length<500)return out;}}
+ const [cs,ss,ee,gg,ll,subs]=await Promise.all([all('cac_classrooms','id',id),all('cac_students','classroom_id',id),all('cac_exams','classroom_id',id),all('cac_grade_entries','classroom_id',id),all('cac_classroom_subjects','classroom_id',id),all('cac_subjects','teacher_id',teacher)]);
+ if(!cs.length)throw Error('Turma não encontrada na conta.');let rr=[];for(let i=0;i<ee.length;i+=50)rr.push(...await all('cac_results','exam_id',ee.slice(i,i+50).map(e=>e.id)));
+ return {c:cs[0],students:ss.map(x=>({id:x.id,name:x.name,code:x.code,created:x.created_at})),exams:ee.map(x=>({id:x.id,name:x.name,subjectId:x.subject_id,trimester:x.trimester,avSlot:x.av_slot,assessmentKind:x.assessment_kind,count:x.question_count,key:x.answer_key,maxScore:x.max_score,created:x.created_at})),results:rr.map(x=>({id:x.id,examId:x.exam_id,studentId:x.student_id,student:x.student_name,studentCode:x.student_code,answers:x.answers,hits:x.hits,score:x.score,count:x.question_count,created:x.created_at})),grades:gg.map(x=>({id:x.id,studentId:x.student_id,subjectId:x.subject_id,trimester:x.trimester,columnCode:x.column_code,status:x.status,score:x.score,created:x.created_at})),links:ll.map(x=>({subjectId:x.subject_id})),subjects:subs};
+}
+function backupTables32(s){
+ const students=[...s.students].sort((a,b)=>a.name.localeCompare(b.name,'pt-BR')),subName=id=>s.subjects.find(x=>x.id===id)?.name||'Sem disciplina',studentName=id=>students.find(x=>x.id===id)?.name||'',exam=id=>s.exams.find(x=>x.id===id),subjectIds=[...new Set([...s.links,...s.exams,...s.grades].map(x=>x.subjectId))],answer=a=>Array.isArray(a)?a.map(x=>x??'-').join(' '):String(a??'');
+ const tables=[{name:'Turma',headers:['Campo','Valor'],rows:[['Turma',s.c.name],['Série',s.c.grade||''],['Turno',s.c.shift||''],['Ano',s.c.year||''],['Estudantes',students.length],['Disciplinas',subjectIds.map(subName).join(', ')],['Exportado em',new Date().toLocaleString('pt-BR')]]},{name:'Estudantes',headers:['Nº','Nome','Código / matrícula'],rows:students.map((x,i)=>[i+1,x.name,x.code||''])}];
+ for(const sid of subjectIds)for(const t of [1,2,3])tables.push({name:`${subName(sid)} - ${t}º tri`,headers:['Nº','Estudante','AT1','AT2','AT3','AT4','AT5','Avaliação'],rows:students.map((x,i)=>[i+1,x.name,...C25.map(k=>{const g=s.grades.find(g=>g.studentId===x.id&&g.subjectId===sid&&Number(g.trimester)===t&&g.columnCode===k);if(g)return g.status==='NC'?'NC':g.status==='GRADE'?Number(g.score):'';const e=s.exams.find(e=>e.subjectId===sid&&trimester25(e)===t&&code25(e)===k);const r=e?s.results.filter(r=>r.examId===e.id&&r.studentId===x.id).sort((a,b)=>new Date(b.created)-new Date(a.created))[0]:null;return r?Number(r.score):'';})])});
+ tables.push({name:'Atividades',headers:['Disciplina','Trimestre','Atividade','Título','Valor','Questões','Gabarito'],rows:s.exams.map(e=>[subName(e.subjectId),trimester25(e),name25(code25(e)),e.name,Number(e.maxScore||10),Number(e.count),answer(e.key)])},{name:'Correções',headers:['Estudante','Disciplina','Trimestre','Atividade','Acertos','Nota','Respostas','Data'],rows:s.results.map(r=>{const e=exam(r.examId);return [studentName(r.studentId)||r.student||'',subName(e?.subjectId),trimester25(e),e?.name||'',Number(r.hits),Number(r.score),answer(r.answers),r.created||''];})},{name:'Notas manuais',headers:['Estudante','Disciplina','Trimestre','Atividade','Situação','Nota'],rows:s.grades.map(g=>[studentName(g.studentId),subName(g.subjectId),Number(g.trimester),name25(g.columnCode),g.status==='NC'?'NC':g.status==='GRADE'?'Nota':'Sem nota',g.score==null?'':Number(g.score)])});return tables;
+}
+function download32(blob,filename){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+function xlsx32(tables){
+ const xml=s=>String(s??'').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+ const hdr='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',main='http://schemas.openxmlformats.org/spreadsheetml/2006/main',rel='http://schemas.openxmlformats.org/officeDocument/2006/relationships',pkg='http://schemas.openxmlformats.org/package/2006/relationships';
+ const files={},used=new Set();const names=tables.map((t,i)=>{let n=t.name.replace(/[\\/:*?\[\]]/g,' ').replace(/^'+|'+$/g,'').slice(0,31)||'Planilha';if(used.has(n.toLowerCase()))n=n.slice(0,25)+' '+(i+1);used.add(n.toLowerCase());return n;});
+ files['[Content_Types].xml']=hdr+`<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${tables.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`;
+ files['_rels/.rels']=hdr+`<Relationships xmlns="${pkg}"><Relationship Id="rId1" Type="${rel}/officeDocument" Target="xl/workbook.xml"/></Relationships>`;
+ files['xl/workbook.xml']=hdr+`<workbook xmlns="${main}" xmlns:r="${rel}"><sheets>${names.map((n,i)=>`<sheet name="${xml(n)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets></workbook>`;
+ files['xl/_rels/workbook.xml.rels']=hdr+`<Relationships xmlns="${pkg}">${tables.map((_,i)=>`<Relationship Id="rId${i+1}" Type="${rel}/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}</Relationships>`;
+ tables.forEach((t,i)=>{const rows=[t.headers,...t.rows];files[`xl/worksheets/sheet${i+1}.xml`]=hdr+`<worksheet xmlns="${main}"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${t.headers.map((h,j)=>`<col min="${j+1}" max="${j+1}" width="${/nome|estudante|título|valor|respostas|gabarito/i.test(h)?36:18}" customWidth="1"/>`).join('')}</cols><sheetData>${rows.map((r,y)=>`<row r="${y+1}">${r.map((v,x)=>{const ref=String.fromCharCode(65+x)+(y+1);return typeof v==='number'&&Number.isFinite(v)?`<c r="${ref}"><v>${v}</v></c>`:`<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xml(v)}</t></is></c>`;}).join('')}</row>`).join('')}</sheetData><autoFilter ref="A1:${String.fromCharCode(64+t.headers.length)}${rows.length}"/></worksheet>`;});
+ const enc=new TextEncoder(),local=[],central=[];let pos=0,centralSize=0;const buf=n=>new Uint8Array(n),u16=(b,p,v)=>new DataView(b.buffer).setUint16(p,v,true),u32=(b,p,v)=>new DataView(b.buffer).setUint32(p,v>>>0,true),crc=b=>{let c=0xffffffff;for(const v of b){c^=v;for(let j=0;j<8;j++)c=(c>>>1)^((c&1)?0xedb88320:0);}return (c^0xffffffff)>>>0;};
+ for(const [name,content] of Object.entries(files)){const n=enc.encode(name),b=enc.encode(content),c=crc(b),h=buf(30),z=buf(46);u32(h,0,0x04034b50);u16(h,4,20);u32(h,14,c);u32(h,18,b.length);u32(h,22,b.length);u16(h,26,n.length);u32(z,0,0x02014b50);u16(z,4,20);u16(z,6,20);u32(z,16,c);u32(z,20,b.length);u32(z,24,b.length);u16(z,28,n.length);u32(z,42,pos);local.push(h,n,b);central.push(z,n);pos+=h.length+n.length+b.length;centralSize+=z.length+n.length;}
+ const end=buf(22),count=Object.keys(files).length;u32(end,0,0x06054b50);u16(end,8,count);u16(end,10,count);u32(end,12,centralSize);u32(end,16,pos);return new Blob([...local,...central,end],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+async function pdf32(tables,c){
+ if(!await ensurePDFLibrary30())throw Error('Gerador de PDF indisponível. Verifique a conexão ou escolha Excel.');
+ const doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4',compress:true});let first=true;
+ for(const t of tables){let y=0;const w=t.headers.map(h=>/estudante|nome|título|respostas|gabarito|valor/i.test(h)?2.3:1),sum=w.reduce((a,b)=>a+b,0),widths=w.map(x=>277*x/sum);const start=()=>{if(!first)doc.addPage();first=false;try{doc.addImage(LOGO30,'PNG',10,6,13,13);}catch{}doc.setTextColor(16,37,66);doc.setFont('helvetica','bold');doc.setFontSize(12);doc.text(SCHOOL30,27,11);doc.setFontSize(10);doc.text(`Turma: ${c.name} | ${c.year||''} — ${t.name}`,27,17,{maxWidth:255});doc.setFontSize(8);doc.setFillColor(17,42,75);doc.rect(10,24,277,8,'F');doc.setTextColor(255);let x=10;t.headers.forEach((v,i)=>{doc.text(String(v),x+2,29,{maxWidth:widths[i]-4});x+=widths[i];});doc.setTextColor(25,35,50);doc.setFont('helvetica','normal');y=35;};start();
+ for(const [idx,row] of t.rows.entries()){doc.setFontSize(8);const lines=row.map((v,i)=>doc.splitTextToSize(String(v??'')||'—',widths[i]-4));const h=Math.max(7,...lines.map(l=>l.length*3.5+3));if(y+h>195)start();if(idx%2===0){doc.setFillColor(244,247,251);doc.rect(10,y-2,277,h,'F');}let x=10;lines.forEach((v,i)=>{doc.text(v,x+2,y+2);x+=widths[i];});y+=h;}
+ if(!t.rows.length)doc.text('Nenhum registro.',12,y+3);
+ }
+ const total=doc.getNumberOfPages();for(let i=1;i<=total;i++){doc.setPage(i);doc.setFontSize(8);doc.setTextColor(90);doc.text('NC = não realizou | — = sem registro',10,204);doc.text(`${i}/${total}`,287,204,{align:'right'});}return doc.output('blob');
+}
+function purgeLocal32(id){const s=classSnapshot32(id),eids=new Set(s.exams.map(e=>e.id)),sids=new Set(s.students.map(x=>x.id));db.results=db.results.filter(r=>!eids.has(r.examId)&&!sids.has(r.studentId));db.gradeEntries=db.gradeEntries.filter(g=>g.classroomId!==id&&!sids.has(g.studentId));db.students=db.students.filter(s=>s.classroomId!==id);db.exams=db.exams.filter(e=>e.classroomId!==id);db.classSubjects=db.classSubjects.filter(a=>a.classroomId!==id);db.classes=db.classes.filter(c=>c.id!==id);}
+deleteClass=async function(id){
+ if(deletePending32)return;const c=db.classes.find(x=>x.id===id);if(!c)return;if(rosterBusy)return toast('Aguarde a importação dos estudantes.');deletePending32=true;
+ try{const choice=await chooseDelete32(c);if(choice==='cancel')return;
+  if(choice!=='none'){const s=mode==='cloud'?await cloudSnapshot32(id):classSnapshot32(id),tables=backupTables32(s),blob=choice==='pdf'?await pdf32(tables,s.c):xlsx32(tables);const filename='CorrigeCAC_Turma_'+String(c.name).replace(/[^\p{L}\p{N}_-]+/gu,'_')+'_'+(c.year||'')+'.'+choice;download32(blob,filename);if(!confirm('O arquivo foi enviado para download. Confirme somente depois de salvar e conferir o arquivo. Apagar definitivamente a turma '+c.name+'?'))return;}
+  else if(!confirm('Apagar definitivamente a turma '+c.name+' e todos os registros, SEM exportar?'))return;
+  if(mode==='cloud'){
+   // Exclusão transacional, com RLS e validação do professor autenticado.
+   const {data,error}=await client.rpc('cac_delete_classroom_complete',{p_classroom_id:id});if(error)throw Error(error.message);if(data!==true)throw Error('Exclusão não confirmada pelo servidor.');
+  }
+  purgeLocal32(id);if(openedClass31===id)openedClass31='';if(selectedClassId===id){selectedClassId=db.classes[0]?.id||'';stagedNames=[];rosterPhotoUrl='';rosterProgress='';}if(!db.exams.some(e=>e.id===scanExamId))scanExamId='';selectedScanStudentId30='';selectedExamDiary30='';grade25Editing=null;detailResultId='';ensureSubject26(selectedClassId);persistDemo();render();toast('Turma e registros vinculados excluídos.');
+ }catch(e){toast('Não foi possível concluir: '+(e.message||e));}finally{deletePending32=false;}
+};
