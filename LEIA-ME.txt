@@ -1,0 +1,16 @@
+CORRIGE+ (CAC) 3.2.3 — atualização de produção
+
+1. No Supabase, Authentication > URL Configuration, ADICIONE a URL abaixo em Redirect URLs. Não altere a Site URL nem remova os endereços da Agenda Docente.
+https://josiasjosiaspedro-max.github.io/Corrige-CAC-/
+
+2. Confira Authentication > Email Templates: os modelos de confirmação e recuperação que usam o link padrão devem preservar {{ .ConfirmationURL }} (não um link fixo para a Agenda Docente).
+
+3. No repositório Corrige-CAC-, substitua index.html e service-worker.js pelos arquivos deste pacote. Mantenha os outros arquivos e ícones já existentes. A versão integra a configuração pública do Supabase e não usa chave secreta.
+
+4. Abra a URL oficial, atualize o navegador, faça login novamente. Contas já confirmadas não precisam criar outra conta.
+
+5. A autorização institucional continua obrigatória. Autorize somente professores validados pela escola, na tabela public.cac_authorized_teachers. Nenhuma regra RLS foi removida.
+
+6. Teste com um novo professor: cadastro, confirmação, retorno ao Corrige+, autorização, acesso e isolamento das turmas. Teste também Agenda Docente separadamente.
+
+Limitações: a configuração de Redirect URLs e o envio ao GitHub precisam ser feitos no painel. A validação do fluxo real de e-mail depende dessas etapas.
