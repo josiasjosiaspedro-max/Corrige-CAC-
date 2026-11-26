@@ -1,4 +1,4 @@
-CORRIGE+ (CAC) 3.2.5 — atualização de produção
+CORRIGE+ (CAC) 3.2.6 — atualização de produção
 
 1. No Supabase, Authentication > URL Configuration, ADICIONE a URL abaixo em Redirect URLs. Não altere a Site URL nem remova os endereços da Agenda Docente.
 https://josiasjosiaspedro-max.github.io/Corrige-CAC-/
@@ -17,4 +17,8 @@ Limitações: a configuração de Redirect URLs e o envio ao GitHub precisam ser
 
 7. Novo cabeçalho de cartões: 1º Ano _____, 2º Ano _____ ou 3º Ano _____, sem a letra da turma, tanto no PDF quanto na impressão. O QR continua vinculado à atividade da turma selecionada para evitar registros incorretos. Gere os cartões de cada turma separadamente.
 
-8. Leitor OMR: calibração de posição, espaçamento e proporções das bolhas após detectar os quatro cantos. Mantém os modelos existentes e o QR. Respostas duplas, em branco ou incertas exigem conferência. Testado com a captura enviada (cantos informados a partir da imagem) e seis cartões simulados (5, 10, 15 e 20 questões). Teste a captura automática e o desempenho no iPhone após publicar.
+8. Nova versão baseada no pacote 3.2.4 recebido: seleção de 1 a 50 questões inteiras, com gabarito, geometria compartilhada entre cartão e leitor, e PDF. Os formatos anteriores de 5, 10, 15, 20 e 30 foram mantidos.
+9. Se o Supabase rejeitar novas quantidades, confira as restrições CHECK das tabelas cac_exams e cac_results (question_count). Não foram alteradas regras do banco nem RLS.
+10. Teste o cadastro, PDF e leitura física com 1, 7, 12, 31 e 50 questões antes do uso oficial. A sintaxe JavaScript foi validada, mas não houve teste com câmera nem banco de produção.
+
+3.2.7: gabarito oficial em linhas com botões circulares e cabeçalho A-E único. Cartões impressos e PDF com cabeçalho apenas no topo de cada bloco, um bloco até 15 questões, dois até 32 e três até 50. O leitor mantém candidatos dos formatos anteriores. Testar cartões físicos antes de uso oficial. Substituir index.html e service-worker.js no GitHub.
